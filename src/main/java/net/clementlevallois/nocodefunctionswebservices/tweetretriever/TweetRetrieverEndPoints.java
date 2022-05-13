@@ -5,9 +5,14 @@
  */
 package net.clementlevallois.nocodefunctionswebservices.tweetretriever;
 
+import com.github.scribejava.core.model.OAuth2AccessToken;
+import com.github.scribejava.core.pkce.PKCE;
+import com.github.scribejava.core.pkce.PKCECodeChallengeMethod;
 import com.twitter.clientlib.ApiException;
 import com.twitter.clientlib.TwitterCredentialsBearer;
+import com.twitter.clientlib.TwitterCredentialsOAuth2;
 import com.twitter.clientlib.api.TwitterApi;
+import com.twitter.clientlib.auth.TwitterOAuth20Service;
 import com.twitter.clientlib.model.Problem;
 import com.twitter.clientlib.model.Tweet;
 import com.twitter.clientlib.model.TweetSearchResponse;
@@ -18,12 +23,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.Scanner;
 import java.util.Set;
-import net.clementlevallois.nocodefunctionswebservices.APIController;
 import static net.clementlevallois.nocodefunctionswebservices.APIController.increment;
 
 /**
@@ -35,24 +41,65 @@ public class TweetRetrieverEndPoints {
     public static void main(String[] args) throws FileNotFoundException, IOException {
         Properties props = new Properties();
         props.load(new FileInputStream("private/props.properties"));
-        TwitterCredentialsBearer credentials = new TwitterCredentialsBearer(props.getProperty("twitter-token-bearer"));
-        TwitterApi apiInstance = new TwitterApi();
-        apiInstance.setTwitterCredentials(credentials);
-        String query = "(from:TwitterDev OR from:TwitterAPI) -is:retweet"; // String | One query/rule/filter for matching Tweets. Refer to https://t.co/rulelength to identify the max query length
-        TweetSearchResponse recentTweets = new TweetRetrieverEndPoints().getRecentTweets(apiInstance, query, 7, 0);
 
-        List<Tweet> tweets = recentTweets.getData();
-        if (tweets != null) {
-            for (Tweet tweet : tweets) {
-                System.out.println("tweet: " + tweet.getText());
-            }
+        TwitterCredentialsOAuth2 credentials = new TwitterCredentialsOAuth2(props.getProperty("twitter_client_id"),
+                props.getProperty("twitter_client_secret"),
+                props.getProperty("twitter_access_token"),
+                System.getenv("TWITTER_OAUTH2_REFRESH_TOKEN")) // absent
+                ;
+
+        TwitterOAuth20Service service = new TwitterOAuth20Service(
+                credentials.getTwitterOauth2ClientId(),
+                credentials.getTwitterOAuth2ClientSecret(),
+                "http://twitter.com",
+                "offline.access tweet.read");
+
+        OAuth2AccessToken accessToken = null;
+        try {
+            final Scanner in = new Scanner(System.in, "UTF-8");
+            System.out.println("Fetching the Authorization URL...");
+
+            final String secretState = "state";
+            PKCE pkce = new PKCE();
+            pkce.setCodeChallenge("challenge");
+            pkce.setCodeChallengeMethod(PKCECodeChallengeMethod.PLAIN);
+            pkce.setCodeVerifier("challenge");
+            String authorizationUrl = service.getAuthorizationUrl(pkce, secretState);
+
+            System.out.println("Go to the Authorization URL and authorize your App:\n"
+                    + authorizationUrl + "\nAfter that paste the authorization code here\n>>");
+            final String code = in.nextLine();
+            System.out.println("\nTrading the Authorization Code for an Access Token...");
+            accessToken = service.getAccessToken(pkce, code);
+
+            System.out.println("Access token: " + accessToken.getAccessToken());
+            System.out.println("Refresh token: " + accessToken.getRefreshToken());
+        } catch (Exception e) {
+            System.err.println("Error while getting the access token:\n " + e);
+            e.printStackTrace();
         }
-        List<Problem> errors = recentTweets.getErrors();
-        if (errors != null) {
-            for (Problem problem : errors) {
-                System.out.println("problem: " + problem.getTitle());
-            }
-        }
+//        TwitterCredentialsBearer credentials = new TwitterCredentialsBearer(props.getProperty("twitter-token-bearer"));
+//        TwitterApi apiInstance = new TwitterApi();
+//        apiInstance.setTwitterCredentials(credentials);
+//        String query = "(from:TwitterDev OR from:TwitterAPI) -is:retweet"; // String | One query/rule/filter for matching Tweets. Refer to https://t.co/rulelength to identify the max query length
+//        String query = "seinecle"; // String | One query/rule/filter for matching Tweets. Refer to https://t.co/rulelength to identify the max query length
+//        TweetSearchResponse recentTweets = new TweetRetrieverEndPoints().getRecentTweets(apiInstance, query, 7, 0);
+//
+//        List<Tweet> tweets = recentTweets.getData();
+//        if (tweets != null) {
+//            for (Tweet tweet : tweets) {
+//                System.out.println("tweet: " + tweet.getText());
+//            }
+//        }
+//        List<Problem> errors = recentTweets.getErrors();
+//        if (errors != null) {
+//            for (Problem problem : errors) {
+//                System.out.println("problem: " + problem.getTitle());
+//            }
+//        }
+//
+//        String json = recentTweets.toJson();
+//        TweetSearchResponse fromJson = TweetSearchResponse.fromJson(json);
 
     }
 
@@ -67,8 +114,13 @@ public class TweetRetrieverEndPoints {
             Integer daysEnd = Math.max(Integer.valueOf(daysEndParam), 0);
 
             TweetSearchResponse recentTweets = new TweetRetrieverEndPoints().getRecentTweets(apiInstance, query, daysStart, daysEnd);
-
-            ctx.result(APIController.byteArraySerializerForTweets(recentTweets)).status(HttpCode.OK);
+            if (recentTweets.getErrors() == null) {
+                recentTweets.setErrors(new ArrayList<Problem>());
+            }
+            if (recentTweets.getData() == null) {
+                recentTweets.setData(new ArrayList<Tweet>());
+            }
+            ctx.result(recentTweets.toJson()).status(HttpCode.OK);
 
         });
 

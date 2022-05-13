@@ -7,6 +7,7 @@ package net.clementlevallois.nocodefunctionswebservices;
 
 import com.twitter.clientlib.TwitterCredentialsBearer;
 import com.twitter.clientlib.api.TwitterApi;
+import com.twitter.clientlib.model.Tweet;
 import com.twitter.clientlib.model.TweetSearchResponse;
 import io.javalin.Javalin;
 import java.io.ByteArrayOutputStream;
@@ -80,7 +81,7 @@ public class APIController {
         return data;
     }
 
-    public static byte[] byteArraySerializerForTweets(TweetSearchResponse o) throws IOException {
+    public static byte[] byteArraySerializerForTweets(List<Tweet> o) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(bos);
         oos.writeObject(o);
