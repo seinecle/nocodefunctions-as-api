@@ -6,6 +6,7 @@
 package net.clementlevallois.nocodefunctionswebservices;
 
 import com.twitter.clientlib.TwitterCredentialsBearer;
+import com.twitter.clientlib.TwitterCredentialsOAuth2;
 import com.twitter.clientlib.api.TwitterApi;
 import com.twitter.clientlib.model.Tweet;
 import com.twitter.clientlib.model.TweetSearchResponse;
@@ -39,24 +40,27 @@ public class APIController {
      * @param args the command line arguments
      */
     private static Javalin app = Javalin.create().start(7002);
-    private static TwitterApi apiInstance;
-    public static String pwdOwner ;
+    private static TwitterApi twitterApiInstance;
+    private static TwitterCredentialsOAuth2 twitterApiCredentials;
+    public static String pwdOwner;
 
     public static void main(String[] args) throws Exception {
         UmigonController umigonController = new UmigonController();
         Properties props = new Properties();
         props.load(new FileInputStream("private/props.properties"));
         pwdOwner = props.getProperty("pwdOwner");
+        String twitterClientId = props.getProperty("twitter_client_id");
+        String twitterClientSecret = props.getProperty("twitter_client_secret");
 
-        TwitterCredentialsBearer credentials = new TwitterCredentialsBearer(props.getProperty("twitter-token-bearer"));
-        apiInstance = new TwitterApi();
-        apiInstance.setTwitterCredentials(credentials);
+        twitterApiCredentials = new TwitterCredentialsOAuth2(twitterClientId,
+                twitterClientSecret,"","");
+        twitterApiInstance = new TwitterApi();
 
         app = SentimentEndPoints.addAll(app, umigonController);
         app = OrganicEndPoints.addAll(app, umigonController);
         app = DelightEndPoints.addAll(app, umigonController);
         app = PdfMatcherEndPoints.addAll(app);
-        app = TweetRetrieverEndPoints.addAll(app, apiInstance);
+        app = TweetRetrieverEndPoints.addAll(app, twitterApiInstance, twitterApiCredentials);
         System.out.println("running the api");
 
     }

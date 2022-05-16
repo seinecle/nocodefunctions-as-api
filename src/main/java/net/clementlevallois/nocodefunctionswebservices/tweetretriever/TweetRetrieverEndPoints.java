@@ -9,7 +9,6 @@ import com.github.scribejava.core.model.OAuth2AccessToken;
 import com.github.scribejava.core.pkce.PKCE;
 import com.github.scribejava.core.pkce.PKCECodeChallengeMethod;
 import com.twitter.clientlib.ApiException;
-import com.twitter.clientlib.TwitterCredentialsBearer;
 import com.twitter.clientlib.TwitterCredentialsOAuth2;
 import com.twitter.clientlib.api.TwitterApi;
 import com.twitter.clientlib.auth.TwitterOAuth20Service;
@@ -25,6 +24,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -41,18 +41,19 @@ public class TweetRetrieverEndPoints {
     public static void main(String[] args) throws FileNotFoundException, IOException {
         Properties props = new Properties();
         props.load(new FileInputStream("private/props.properties"));
+        String twitterClientId = props.getProperty("twitter_client_id");
+        String twitterClientSecret = props.getProperty("twitter_client_secret");
 
-        TwitterCredentialsOAuth2 credentials = new TwitterCredentialsOAuth2(props.getProperty("twitter_client_id"),
-                props.getProperty("twitter_client_secret"),
-                props.getProperty("twitter_access_token"),
-                System.getenv("TWITTER_OAUTH2_REFRESH_TOKEN")) // absent
-                ;
+        TwitterCredentialsOAuth2 twitterApiOAuth2Credentials = new TwitterCredentialsOAuth2(twitterClientId,
+                twitterClientSecret,
+                "",
+                "");
 
         TwitterOAuth20Service service = new TwitterOAuth20Service(
-                credentials.getTwitterOauth2ClientId(),
-                credentials.getTwitterOAuth2ClientSecret(),
-                "http://twitter.com",
-                "offline.access tweet.read");
+                twitterApiOAuth2Credentials.getTwitterOauth2ClientId(),
+                twitterApiOAuth2Credentials.getTwitterOAuth2ClientSecret(),
+                "https://nocodefunctions.com/twitter_auth.html",
+                "offline.access tweet.read users.read");
 
         OAuth2AccessToken accessToken = null;
         try {
@@ -72,8 +73,13 @@ public class TweetRetrieverEndPoints {
             System.out.println("\nTrading the Authorization Code for an Access Token...");
             accessToken = service.getAccessToken(pkce, code);
 
-            System.out.println("Access token: " + accessToken.getAccessToken());
-            System.out.println("Refresh token: " + accessToken.getRefreshToken());
+            twitterApiOAuth2Credentials.setTwitterOauth2AccessToken(accessToken.getAccessToken());
+            twitterApiOAuth2Credentials.setTwitterOauth2RefreshToken(accessToken.getRefreshToken());
+            TwitterApi apiInstance = new TwitterApi ();
+            apiInstance.setTwitterCredentials(twitterApiOAuth2Credentials);
+
+            ResponseFull responseFull = new TweetRetrieverEndPoints().getRecentTweets(apiInstance, "seinecle", 7, 0);
+
         } catch (Exception e) {
             System.err.println("Error while getting the access token:\n " + e);
             e.printStackTrace();
@@ -103,33 +109,52 @@ public class TweetRetrieverEndPoints {
 
     }
 
-    public static Javalin addAll(Javalin app, TwitterApi apiInstance) throws Exception {
+    public static Javalin addAll(Javalin app, TwitterApi apiInstance, TwitterCredentialsOAuth2 twitterApiOAuth2Credentials) throws Exception {
 
-        app.get("/api/tweets/bytes", ctx -> {
+        app.get("/api/tweets/json", ctx -> {
             increment();
+            //OAUTH2
+            String accessToken = ctx.queryParam("accessToken");
+            String refreshToken = ctx.queryParam("refreshToken");
+
+            // QUERY ON RECENT TWEETS
             String query = ctx.queryParam("query");
             String daysStartParam = ctx.queryParam("days_start");
             Integer daysStart = Math.min(Integer.valueOf(daysStartParam), 7);
             String daysEndParam = ctx.queryParam("days_end");
             Integer daysEnd = Math.max(Integer.valueOf(daysEndParam), 0);
 
-            TweetSearchResponse recentTweets = new TweetRetrieverEndPoints().getRecentTweets(apiInstance, query, daysStart, daysEnd);
-            if (recentTweets.getErrors() == null) {
-                recentTweets.setErrors(new ArrayList<Problem>());
-            }
-            if (recentTweets.getData() == null) {
-                recentTweets.setData(new ArrayList<Tweet>());
-            }
-            ctx.result(recentTweets.toJson()).status(HttpCode.OK);
+            twitterApiOAuth2Credentials.setTwitterOauth2AccessToken(accessToken);
+            twitterApiOAuth2Credentials.setTwitterOauth2RefreshToken(refreshToken);
+            apiInstance.setTwitterCredentials(twitterApiOAuth2Credentials);
 
+            ResponseFull responseFull = new TweetRetrieverEndPoints().getRecentTweets(apiInstance, query, daysStart, daysEnd);
+            if (responseFull.getResponse() == null) {
+                if (responseFull.getApiException() == null) {
+                    ctx.result("{}").status(HttpCode.INTERNAL_SERVER_ERROR);
+                } else {
+                    long timetoWait = getTimeToWait(responseFull.getApiException());
+                    ctx.result("{\"time to wait\":" + timetoWait + "}").status(HttpCode.TOO_MANY_REQUESTS);
+                }
+            } else {
+                TweetSearchResponse recentTweets = responseFull.getResponse();
+                if (recentTweets.getErrors() == null) {
+                    recentTweets.setErrors(new ArrayList());
+                }
+                if (recentTweets.getData() == null) {
+                    recentTweets.setData(new ArrayList());
+                }
+                ctx.result(recentTweets.toJson()).status(HttpCode.OK);
+            }
         });
 
         return app;
     }
 
-    private TweetSearchResponse getRecentTweets(TwitterApi apiInstance, String query, int daysStart, int daysEnd) {
+    private ResponseFull getRecentTweets(TwitterApi apiInstance, String query, int daysStart, int daysEnd) {
         // Set the params values
         TweetSearchResponse result = null;
+        ResponseFull responseFull = new ResponseFull();
         OffsetDateTime startTime = OffsetDateTime.now().minus(Duration.ofDays(daysStart)); // OffsetDateTime | YYYY-MM-DDTHH:mm:ssZ. The oldest UTC timestamp (from most recent 7 days) from which the Tweets will be provided. Timestamp is in second granularity and is inclusive (i.e. 12:00:01 includes the first second of the minute).
         OffsetDateTime endTime = OffsetDateTime.now().minus(Duration.ofDays(daysEnd)).minus(Duration.ofSeconds(11)); // OffsetDateTime | YYYY-MM-DDTHH:mm:ssZ. The newest, most recent UTC timestamp to which the Tweets will be provided. Timestamp is in second granularity and is exclusive (i.e. 12:00:01 excludes the first second of the minute).
         String sinceId = null; // String | Returns results with a Tweet ID greater than (that is, more recent than) the specified ID.
@@ -146,15 +171,35 @@ public class TweetRetrieverEndPoints {
         Set<String> pollFields = new HashSet<>(Arrays.asList()); // Set<String> | A comma separated list of Poll fields to display.
         try {
             result = apiInstance.tweets().tweetsRecentSearch(query, startTime, endTime, sinceId, untilId, maxResults, sortOrder, nextToken, paginationToken, expansions, tweetFields, userFields, mediaFields, placeFields, pollFields);
-        } catch (ApiException e) {
-            System.err.println("Exception when calling TweetsApi#tweetsRecentSearch");
-            System.err.println("Status code: " + e.getCode());
-            System.err.println("Reason: " + e.getResponseBody());
-            System.err.println("Response headers: " + e.getResponseHeaders());
+            responseFull.setResponse(result);
+        } catch (Exception e) {
+            if (e instanceof ApiException) {
+                ApiException eAPI = (ApiException) e;
+                responseFull.setApiException(eAPI);
+            }
             e.printStackTrace();
         }
 
-        return result;
+        return responseFull;
 
+    }
+
+    static long getTimeToWait(ApiException e) {
+        long timeToWait = 1000;
+
+        if (isRateLimitRemaining(e)) {
+            List<String> xRateLimitReset = e.getResponseHeaders().get("x-rate-limit-reset");
+            if (xRateLimitReset != null && xRateLimitReset.get(0) != null) {
+                timeToWait = Long.parseLong(
+                        xRateLimitReset.get(0)) * 1000 - Calendar.getInstance().getTimeInMillis();
+            }
+        }
+        return timeToWait;
+    }
+
+    static boolean isRateLimitRemaining(ApiException e) {
+        List<String> xRateLimitRemaining = e.getResponseHeaders().get("x-rate-limit-remaining");
+        return xRateLimitRemaining != null && xRateLimitRemaining.get(0) != null
+                && Long.parseLong(xRateLimitRemaining.get(0)) == 0;
     }
 }
