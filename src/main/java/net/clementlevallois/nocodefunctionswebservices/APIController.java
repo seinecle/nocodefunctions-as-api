@@ -5,11 +5,9 @@
  */
 package net.clementlevallois.nocodefunctionswebservices;
 
-import com.twitter.clientlib.TwitterCredentialsBearer;
 import com.twitter.clientlib.TwitterCredentialsOAuth2;
 import com.twitter.clientlib.api.TwitterApi;
 import com.twitter.clientlib.model.Tweet;
-import com.twitter.clientlib.model.TweetSearchResponse;
 import io.javalin.Javalin;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;

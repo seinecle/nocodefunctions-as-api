@@ -8,22 +8,25 @@ package net.clementlevallois.nocodefunctionswebservices.delight;
 import io.javalin.Javalin;
 import io.javalin.http.HttpCode;
 import io.javalin.http.util.NaiveRateLimit;
+import jakarta.json.Json;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonReader;
 import java.io.StringReader;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import javax.json.Json;
-import javax.json.JsonObject;
-import javax.json.JsonObjectBuilder;
-import javax.json.JsonReader;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import static net.clementlevallois.nocodefunctionswebservices.APIController.increment;
 import net.clementlevallois.umigon.classifier.delight.ClassifierDelightOneDocument;
 import net.clementlevallois.umigon.classifier.delight.ClassifierDelightOneWordInADocument;
 import net.clementlevallois.umigon.controller.UmigonController;
-import net.clementlevallois.umigon.model.Categories;
+import net.clementlevallois.umigon.model.Category;
+import net.clementlevallois.umigon.model.Category.CategoryEnum;
 import net.clementlevallois.umigon.model.Document;
+import net.clementlevallois.umigon.model.ResultOneHeuristics;
 
 /**
  *
@@ -157,7 +160,13 @@ public class DelightEndPoints {
                     Document doc = new Document();
                     doc.setText(lines.get(key));
                     doc = classifier.call(doc);
-                    results.put(key, doc.getNaturalness());
+                    Map<Integer, ResultOneHeuristics> map1 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._17);
+                    if (map1.isEmpty()) {
+                        results.put(key, "no delight");
+                    } else {
+                        results.put(key, "delight");
+                    }
+
                 }
                 ctx.json(results).status(HttpCode.OK);
             }
@@ -168,7 +177,7 @@ public class DelightEndPoints {
             increment();
             String text = ctx.queryParam("text");
             if (text == null || text.isBlank()) {
-                ctx.result(Categories.Category._10.toString()).status(HttpCode.BAD_REQUEST);
+                ctx.result(CategoryEnum._10.toString()).status(HttpCode.BAD_REQUEST);
             } else {
                 String lang = ctx.pathParam("lang");
                 Document doc = new Document();
@@ -181,45 +190,51 @@ public class DelightEndPoints {
                     case "fr":
                         doc = classifierOneDocFR.call(doc);
                         break;
-
                     default:
                         ctx.result("wrong param for lang - lang not supported").status(HttpCode.BAD_REQUEST);
                 }
-                ctx.result(doc.getNaturalness()).status(HttpCode.OK);
+                    Map<Integer, ResultOneHeuristics> map1 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._17);
+                    if (map1.isEmpty()) {
+                        ctx.result("no delight").status(HttpCode.OK);
+                    } else {
+                        ctx.result("delight").status(HttpCode.OK);
+                    }
+
+                
             }
         }
         );
 
         app.get("/api/delightForAText/bytes/{lang}", ctx -> {
-                    Document docInput = new Document();
-                    APIController.increment();
-                    String text = ctx.queryParam("text");
-                    String id = ctx.queryParam("id");
-                    if (id == null) {
-                        id = UUID.randomUUID().toString().substring(0, 10);
-                    }
-                    docInput.setId(id);
-                    if (text == null) {
+            Document docInput = new Document();
+            APIController.increment();
+            String text = ctx.queryParam("text");
+            String id = ctx.queryParam("id");
+            if (id == null) {
+                id = UUID.randomUUID().toString().substring(0, 10);
+            }
+            docInput.setId(id);
+            if (text == null) {
+                ctx.result(APIController.byteArraySerializerForDocuments(docInput)).status(HttpCode.BAD_REQUEST);
+            } else {
+                docInput.setText(text);
+                String lang = ctx.pathParam("lang");
+                Document docOutput = null;
+                switch (lang) {
+                    case "en":
+                        docOutput = classifierOneDocEN.call(docInput);
+                        break;
+
+                    case "fr":
+                        docOutput = classifierOneDocFR.call(docInput);
+                        break;
+
+                    default:
                         ctx.result(APIController.byteArraySerializerForDocuments(docInput)).status(HttpCode.BAD_REQUEST);
-                    } else {
-                        docInput.setText(text);
-                        String lang = ctx.pathParam("lang");
-                        Document docOutput = null;
-                        switch (lang) {
-                            case "en":
-                                docOutput = classifierOneDocEN.call(docInput);
-                                break;
-
-                            case "fr":
-                                docOutput = classifierOneDocFR.call(docInput);
-                                break;
-
-                            default:
-                                ctx.result(APIController.byteArraySerializerForDocuments(docInput)).status(HttpCode.BAD_REQUEST);
-                        }
-                        ctx.result(APIController.byteArraySerializerForDocuments(docOutput)).status(HttpCode.OK);
-                    }
                 }
+                ctx.result(APIController.byteArraySerializerForDocuments(docOutput)).status(HttpCode.OK);
+            }
+        }
         );
 
         return app;

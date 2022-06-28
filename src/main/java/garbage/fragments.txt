@@ -1,0 +1,90 @@
+        ClassifierSentimentOneWordInADocument classifierOneWordFR = new ClassifierSentimentOneWordInADocument(umigonController.getSemanticsFR());
+        ClassifierSentimentOneWordInADocument classifierOneWordEN = new ClassifierSentimentOneWordInADocument(umigonController.getSemanticsEN());
+
+        app.post("/api/sentimentForOneTermInAText/{lang}", ctx -> {
+            String owner = ctx.queryParam("owner");
+            if (owner == null || !owner.equals(APIController.pwdOwner)) {
+                NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
+                increment();
+            }
+            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
+            TreeMap<Integer, JsonObject> lines = new TreeMap();
+            TreeMap<Integer, String> results = new TreeMap();
+            String body = ctx.body();
+            if (body.isEmpty()) {
+                objectBuilder.add("-99", "body of the request should not be empty");
+                JsonObject jsonObject = objectBuilder.build();
+                ctx.result(jsonObject.toString()).status(HttpCode.BAD_REQUEST);
+            } else {
+                JsonReader jsonReader = Json.createReader(new StringReader(body));
+                JsonObject jsonObject = jsonReader.readObject();
+                Iterator<String> iteratorKeys = jsonObject.keySet().iterator();
+                int i = 0;
+                while (iteratorKeys.hasNext()) {
+                    JsonObject oneDocument = jsonObject.getJsonObject(iteratorKeys.next());
+                    lines.put(i++, oneDocument);
+                }
+                ClassifierSentimentOneWordInADocument classifier = null;
+                String lang = ctx.pathParam("lang");
+                switch (lang) {
+                    case "en":
+                        classifier = classifierOneWordEN;
+                        break;
+
+                    case "fr":
+                        classifier = classifierOneWordFR;
+                        break;
+
+                    default:
+                        objectBuilder.add("-99", "wrong param for lang - lang not supported");
+                        JsonObject jsonObjectWrite = objectBuilder.build();
+                        ctx.result(jsonObjectWrite.toString()).status(HttpCode.BAD_REQUEST);
+                }
+                for (Integer key : lines.keySet()) {
+                    String result = classifier.call(lines.get(key).getString("term"), lines.get(key).getString("text"));
+                    results.put(key, result);
+                }
+                ctx.json(results).status(HttpCode.OK);
+            }
+        });
+
+        app.get("/api/sentimentForOneTermInAText/{lang}", ctx -> {
+            String owner = ctx.queryParam("owner");
+            if (owner == null || !owner.equals(APIController.pwdOwner)) {
+                NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
+                increment();
+            }
+            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
+            String term = ctx.queryParam("term");
+            String text = ctx.queryParam("text");
+            String result;
+            if (term == null || term.isBlank() || text == null || text.isBlank()) {
+                objectBuilder.add("-99", "term in the request should not be null or empty");
+                JsonObject jsonObject = objectBuilder.build();
+                ctx.result(jsonObject.toString()).status(HttpCode.BAD_REQUEST);
+            } else {
+
+                ClassifierSentimentOneWordInADocument classifier = null;
+                String lang = ctx.pathParam("lang");
+                switch (lang) {
+                    case "en":
+                        classifier = classifierOneWordEN;
+                        break;
+
+                    case "fr":
+                        classifier = classifierOneWordFR;
+                        break;
+
+                    default:
+                        classifier = classifierOneWordEN;
+                        objectBuilder.add("-99", "wrong param for lang - lang not supported");
+                        JsonObject jsonObjectWrite = objectBuilder.build();
+                        ctx.result(jsonObjectWrite.toString()).status(HttpCode.BAD_REQUEST);
+                }
+
+                result = classifier.call(term, text);
+                ctx.result(result).status(HttpCode.OK);
+            }
+        }
+        );
+
