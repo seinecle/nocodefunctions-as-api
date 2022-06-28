@@ -6,8 +6,8 @@
 package net.clementlevallois.nocodefunctionswebservices.sentiment;
 
 import io.javalin.Javalin;
+import io.javalin.http.ContentType;
 import io.javalin.http.Context;
-import io.javalin.http.Handler;
 import io.javalin.http.HttpCode;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
@@ -17,7 +17,6 @@ import jakarta.json.JsonReader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -26,9 +25,8 @@ import static net.clementlevallois.nocodefunctionswebservices.APIController.incr
 import net.clementlevallois.umigon.classifier.sentiment.ClassifierSentimentOneDocument;
 import net.clementlevallois.umigon.controller.UmigonController;
 import net.clementlevallois.umigon.explain.controller.UmigonExplain;
-import net.clementlevallois.umigon.model.Category;
+import net.clementlevallois.umigon.explain.parameters.HtmlSettings;
 import net.clementlevallois.umigon.model.Document;
-import net.clementlevallois.umigon.model.ResultOneHeuristics;
 
 /**
  *
@@ -123,62 +121,110 @@ public class SentimentEndPoints {
                 }
                 if (explanationParam != null && explanationParam.toLowerCase().equals("on")) {
                     String explanationPlainText = UmigonExplain.getExplanationOfHeuristicResultsPlainText(doc, langExplanation);
-                    ctx.result(explanationPlainText).status(HttpCode.OK);
+                    if (!doc.getSentimentDecisions().isEmpty()) {
+                        explanationPlainText = explanationPlainText + " " + UmigonExplain.getExplanationsOfDecisionsPlainText(doc, langExplanation);
+                    }
+                    ctx.result(explanationPlainText).status(HttpCode.OK).contentType("text/html; charset=utf-8");
                 } else {
                     String sentimentPlainText = UmigonExplain.getSentimentPlainText(doc, langExplanation);
-                    ctx.result(sentimentPlainText).status(HttpCode.OK);
+                    ctx.result(sentimentPlainText).status(HttpCode.OK).contentType("text/html; charset=utf-8");
                 }
             }
         });
 
-        app.get("/api/sentimentForAText/json/{lang}", new Handler() {
-            @Override
-            public void handle(Context ctx) throws Exception {
-                JsonObjectBuilder jsonAnswer = Json.createObjectBuilder();
-                jsonAnswer.add("info and questions", "admin@clementlevallois.net");
-                String owner = ctx.queryParam("owner");
-                if (owner == null || !owner.equals(APIController.pwdOwner)) {
-                    NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
-                    increment();
+        app.get("/api/sentimentForAText/html/{lang}", ctx -> {
+            String owner = ctx.queryParam("owner");
+            if (owner == null || !owner.equals(APIController.pwdOwner)) {
+                NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
+                increment();
+            }
+            String text = ctx.queryParam("text");
+            if (text == null || text.isBlank()) {
+                ctx.result("param \"text\" is missing").status(HttpCode.BAD_REQUEST);
+            } else {
+                String lang = ctx.pathParam("lang");
+                Document doc = new Document();
+                doc.setText(text);
+                switch (lang) {
+                    case "en":
+                        doc = classifierOneDocEN.call(doc);
+                        break;
+
+                    case "fr":
+                        doc = classifierOneDocFR.call(doc);
+                        break;
+
+                    default:
+                        ctx.result("wrong param for lang - lang not supported").status(HttpCode.BAD_REQUEST);
                 }
-                String text = ctx.queryParam("text");
-                if (text == null || text.isBlank()) {
-                    ctx.json("{\"error\":\"query parameter *text* is missing\"}").status(HttpCode.BAD_REQUEST);
+                String explanationParam = ctx.queryParam("explanation");
+                String langExplanation = ctx.queryParam("explanation_lang");
+                if (langExplanation == null) {
+                    langExplanation = "en";
+                }
+                if (explanationParam != null && explanationParam.toLowerCase().equals("on")) {
+                    HtmlSettings htmlSettings = new HtmlSettings();
+                    String explanationInHtml = UmigonExplain.getExplanationOfHeuristicResultsHtml(doc, langExplanation, htmlSettings);
+                    if (!doc.getSentimentDecisions().isEmpty()) {
+                        explanationInHtml = explanationInHtml + " " + UmigonExplain.getExplanationsOfDecisionsHtml(doc, langExplanation, htmlSettings);
+                    }
+                    ctx.result(explanationInHtml).status(HttpCode.OK).contentType("text/html; charset=utf-8");
                 } else {
-                    String lang = ctx.pathParam("lang");
-                    Document doc = new Document();
-                    doc.setText(text);
-                    switch (lang) {
-                        case "en":
-                            doc = classifierOneDocEN.call(doc);
-                            break;
-
-                        case "fr":
-                            doc = classifierOneDocFR.call(doc);
-                            break;
-
-                        default:
-                            ctx.json("\"wrong param for lang\":\"lang not supported\"").status(HttpCode.BAD_REQUEST);
-                    }
-                    String explanationParam = ctx.queryParam("explanation");
-                    String langExplanation = ctx.queryParam("explanation_lang");
-                    if (langExplanation == null) {
-                        langExplanation = "en";
-                    }
-                    if (explanationParam != null && explanationParam.toLowerCase().equals("on")) {
-                        JsonObjectBuilder explanationOfHeuristicResultsJson = UmigonExplain.getExplanationOfHeuristicResultsJson(doc, langExplanation);
-                        jsonAnswer.addAll(explanationOfHeuristicResultsJson);
-                    } else {
-                        jsonAnswer.add("sentiment", UmigonExplain.getSentimentPlainText(doc, langExplanation));
-                    }
-                    JsonObject jsonToSend = jsonAnswer.build();
-                    try ( java.io.StringWriter stringWriter = new StringWriter()) {
-                        var jsonWriter = Json.createWriter(stringWriter);
-                        jsonWriter.writeObject(jsonToSend);
-                        ctx.json(stringWriter.toString()).status(HttpCode.OK);
-                    }
-
+                    String sentimentPlainText = UmigonExplain.getSentimentPlainText(doc, langExplanation);
+                    ctx.result(sentimentPlainText).status(HttpCode.OK).contentType("text/html; charset=utf-8");
                 }
+            }
+        });
+
+        app.get("/api/sentimentForAText/json/{lang}", (Context ctx) -> {
+            JsonObjectBuilder jsonAnswer = Json.createObjectBuilder();
+            jsonAnswer.add("info and questions", "admin@clementlevallois.net");
+            String owner = ctx.queryParam("owner");
+            if (owner == null || !owner.equals(APIController.pwdOwner)) {
+                NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
+                increment();
+            }
+            String text = ctx.queryParam("text");
+            if (text == null || text.isBlank()) {
+                ctx.json("{\"error\":\"query parameter *text* is missing\"}").status(HttpCode.BAD_REQUEST);
+            } else {
+                String lang = ctx.pathParam("lang");
+                Document doc = new Document();
+                doc.setText(text);
+                switch (lang) {
+                    case "en":
+                        doc = classifierOneDocEN.call(doc);
+                        break;
+
+                    case "fr":
+                        doc = classifierOneDocFR.call(doc);
+                        break;
+
+                    default:
+                        ctx.json("\"wrong param for lang\":\"lang not supported\"").status(HttpCode.BAD_REQUEST);
+                }
+                String explanationParam = ctx.queryParam("explanation");
+                String langExplanation = ctx.queryParam("explanation_lang");
+                if (langExplanation == null) {
+                    langExplanation = "en";
+                }
+                if (explanationParam != null && explanationParam.toLowerCase().equals("on")) {
+                    JsonObjectBuilder explanationOfHeuristicResultsJson = UmigonExplain.getExplanationOfHeuristicResultsJson(doc, langExplanation);
+                    jsonAnswer.addAll(explanationOfHeuristicResultsJson);
+                    if (!doc.getSentimentDecisions().isEmpty()) {
+                        jsonAnswer.add("deciding between different heuristics", UmigonExplain.getExplanationsOfDecisionsJsonObject(doc, langExplanation));
+                    }
+
+                } else {
+                    jsonAnswer.add("sentiment", UmigonExplain.getSentimentPlainText(doc, langExplanation));
+                }
+                JsonObject jsonToSend = jsonAnswer.build();
+                try ( java.io.StringWriter stringWriter = new StringWriter()) {
+                    var jsonWriter = Json.createWriter(stringWriter);
+                    jsonWriter.writeObject(jsonToSend);
+                    ctx.json(stringWriter.toString()).status(HttpCode.OK);
+                }
+
             }
         });
 
