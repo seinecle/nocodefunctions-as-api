@@ -9,16 +9,21 @@ import com.twitter.clientlib.TwitterCredentialsOAuth2;
 import com.twitter.clientlib.api.TwitterApi;
 import com.twitter.clientlib.model.Tweet;
 import io.javalin.Javalin;
+import jakarta.json.Json;
+import jakarta.json.JsonObject;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import net.clementlevallois.nocodefunctionswebservices.sentiment.SentimentEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.delight.DelightEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.organic.OrganicEndPoints;
@@ -51,7 +56,7 @@ public class APIController {
         String twitterClientSecret = props.getProperty("twitter_client_secret");
 
         twitterApiCredentials = new TwitterCredentialsOAuth2(twitterClientId,
-                twitterClientSecret,"","");
+                twitterClientSecret, "", "");
         twitterApiInstance = new TwitterApi();
 
         app = SentimentEndPoints.addAll(app, umigonController);
@@ -99,6 +104,19 @@ public class APIController {
         oos.flush();
         byte[] data = bos.toByteArray();
         return data;
+    }
+
+    public static String turnJsonObjectToString(JsonObject jsonObject) {
+        String output = "{}";
+        try ( java.io.StringWriter stringWriter = new StringWriter()) {
+            var jsonWriter = Json.createWriter(stringWriter);
+            jsonWriter.writeObject(jsonObject);
+            output = stringWriter.toString();
+        } catch (IOException ex) {
+            Logger.getLogger(APIController.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return output;
+
     }
 
 }
