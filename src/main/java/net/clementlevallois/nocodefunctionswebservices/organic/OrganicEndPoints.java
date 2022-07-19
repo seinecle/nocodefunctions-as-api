@@ -14,7 +14,7 @@ import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonReader;
 import java.io.StringReader;
 import java.util.Iterator;
-import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -79,9 +79,9 @@ public class OrganicEndPoints {
                     Document doc = new Document();
                     doc.setText(lines.get(key));
                     doc = classifier.call(doc);
-                    Map<Integer, ResultOneHeuristics> map1 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._61);
-                    Map<Integer, ResultOneHeuristics> map2 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._611);
-                    if (map1.isEmpty() && map2.isEmpty()) {
+                    Set<ResultOneHeuristics> map1 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._61);
+                    Set<ResultOneHeuristics> map2 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._611);
+                    if (map1.isEmpty() & map2.isEmpty()) {
                         results.put(key, "natural");
                     } else {
                         results.put(key, "promoted");
@@ -113,9 +113,9 @@ public class OrganicEndPoints {
                     default:
                         ctx.result("wrong param for lang - lang not supported").status(HttpCode.BAD_REQUEST);
                 }
-                Map<Integer, ResultOneHeuristics> map1 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._61);
-                Map<Integer, ResultOneHeuristics> map2 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._611);
-                if (map1.isEmpty() && map2.isEmpty()) {
+                Set<ResultOneHeuristics> map1 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._61);
+                Set<ResultOneHeuristics> map2 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._611);
+                if (map1.isEmpty() & map2.isEmpty()) {
                     ctx.result("natural").status(HttpCode.OK);
                 } else {
                     ctx.result("promoted").status(HttpCode.OK);
