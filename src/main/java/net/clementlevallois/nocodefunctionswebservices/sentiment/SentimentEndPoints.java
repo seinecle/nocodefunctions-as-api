@@ -144,14 +144,14 @@ public class SentimentEndPoints {
                     outputFormat = "plain";
                 }
                 Document doc = new Document();
-                doc.setText(text);
+                doc.setText(text.trim());
                 String id = ctx.queryParam("id");
                 if (id == null) {
                     id = UUID.randomUUID().toString().substring(0, 10);
                 }
                 doc.setId(id);
 
-                switch (textLang) {
+                switch (textLang.trim()) {
                     case "en":
                         doc = classifierOneDocEN.call(doc);
                         break;
@@ -170,21 +170,22 @@ public class SentimentEndPoints {
                 if (langExplanation == null || langExplanation.isBlank()) {
                     langExplanation = "en";
                 }
-                if (explanationParam != null && explanationParam.toLowerCase().equals("on")) {
+                if (explanationParam != null && explanationParam.trim().toLowerCase().equals("on")) {
                     String contactPointPlain = "Made with https://nocodefunctions.com. Remarks, questions, corrections: admin@clementlevallois.net";
 
-                    switch (outputFormat) {
+                    switch (outputFormat.trim()) {
                         case "plain":
-                            String explanationInPlain = UmigonExplain.getExplanationOfHeuristicResultsPlainText(doc, langExplanation);
+                            String explanationInPlain = UmigonExplain.getExplanationOfHeuristicResultsPlainText(doc, langExplanation.trim());
                             if (!doc.getSentimentDecisions().isEmpty()) {
-                                explanationInPlain = explanationInPlain + " " + UmigonExplain.getExplanationsOfDecisionsPlainText(doc, langExplanation);
+                                explanationInPlain = explanationInPlain + " " + UmigonExplain.getExplanationsOfDecisionsPlainText(doc, langExplanation.trim());
                             }
-                            ctx.result("*** " + contactPointPlain + " ***" + "\n" + explanationInPlain).status(HttpCode.OK).contentType("text/html; charset=utf-8");
+                            String resultString = "*** " + contactPointPlain + " ***" + "\n\n" + explanationInPlain;
+                            ctx.result(resultString).status(HttpCode.OK).contentType("text/html; charset=utf-8");
                             break;
 
                         case "html":
                             HtmlSettings htmlSettings = new HtmlSettings();
-                            String explanationInHtml = UmigonExplain.getExplanationOfHeuristicResultsHtml(doc, langExplanation, htmlSettings);
+                            String explanationInHtml = UmigonExplain.getExplanationOfHeuristicResultsHtml(doc, langExplanation.trim(), htmlSettings);
                             ctx.result(explanationInHtml).status(HttpCode.OK).contentType("text/html; charset=utf-8");
                             break;
 
@@ -194,28 +195,28 @@ public class SentimentEndPoints {
 
                         case "json":
                             jsonAnswer.add("info", contactPointPlain);
-                            jsonAnswer.addAll(UmigonExplain.getExplanationOfHeuristicResultsJson(doc, langExplanation));
+                            jsonAnswer.addAll(UmigonExplain.getExplanationOfHeuristicResultsJson(doc, langExplanation.trim()));
                             if (!doc.getSentimentDecisions().isEmpty()) {
-                                jsonAnswer.addAll(UmigonExplain.getExplanationsOfDecisionsJsonObject(doc, langExplanation));
+                                jsonAnswer.addAll(UmigonExplain.getExplanationsOfDecisionsJsonObject(doc, langExplanation.trim()));
                             }
                             ctx.json(APIController.turnJsonObjectToString(jsonAnswer.build())).status(HttpCode.OK).contentType("application/json; charset=utf-8");
                             break;
 
                         default:
-                            jsonAnswer.addAll(UmigonExplain.getExplanationOfHeuristicResultsJson(doc, langExplanation));
+                            jsonAnswer.addAll(UmigonExplain.getExplanationOfHeuristicResultsJson(doc, langExplanation.trim()));
                             if (!doc.getSentimentDecisions().isEmpty()) {
-                                jsonAnswer.addAll(UmigonExplain.getExplanationsOfDecisionsJsonObject(doc, langExplanation));
+                                jsonAnswer.addAll(UmigonExplain.getExplanationsOfDecisionsJsonObject(doc, langExplanation.trim()));
                             }
                             ctx.json(APIController.turnJsonObjectToString(jsonAnswer.build())).status(HttpCode.OK).contentType("application/json; charset=utf-8");
                             break;
 
                     }
                 } else {
-                    if (outputFormat.equals("json")) {
-                        String result = APIController.turnJsonObjectToString(UmigonExplain.getSentimentJsonObject(doc, langExplanation).build());
+                    if (outputFormat.trim().equals("json")) {
+                        String result = APIController.turnJsonObjectToString(UmigonExplain.getSentimentJsonObject(doc, langExplanation.trim()).build());
                         ctx.result(result).status(HttpCode.OK).contentType("application/json; charset=utf-8");
                     } else {
-                        String sentimentPlainText = UmigonExplain.getSentimentPlainText(doc, langExplanation);
+                        String sentimentPlainText = UmigonExplain.getSentimentPlainText(doc, langExplanation.trim());
                         ctx.result(sentimentPlainText).status(HttpCode.OK).contentType("text/html; charset=utf-8");
                     }
                 }
