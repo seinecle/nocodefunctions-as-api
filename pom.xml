@@ -23,6 +23,12 @@
             <version>1.0</version>
         </dependency>
         <dependency>
+            <groupId>net.clementlevallois.umigonfamily</groupId>
+            <artifactId>umigon-explain</artifactId>
+            <version>1.0</version>
+            <type>jar</type>
+        </dependency>
+        <dependency>
             <groupId>net.clementlevallois.pdfmatcher.controller</groupId>
             <artifactId>PdfMatcher</artifactId>
             <version>1.0-SNAPSHOT</version>
