@@ -129,10 +129,19 @@ public class SentimentEndPoints {
 
             String owner = ctx.queryParam("owner");
             if (owner == null || !owner.equals(APIController.pwdOwner)) {
+                System.out.println("pwd not fou  Found");
                 NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
                 increment();
             }
             String text = ctx.queryParam("text");
+            String withoutContactAndTextTitle = ctx.queryParam("shorter");
+            Boolean withoutContactAndTextTitleBoolean;
+            if (withoutContactAndTextTitle != null && (withoutContactAndTextTitle.equals("true") | withoutContactAndTextTitle.equals("false")) && Boolean.valueOf(withoutContactAndTextTitle)) {
+                withoutContactAndTextTitleBoolean = true;
+            } else {
+                withoutContactAndTextTitleBoolean = false;
+            }
+
             String textLang = ctx.queryParam("text-lang");
             if (textLang == null || (textLang.isBlank())) {
                 ctx.result("parameter \"text-lang\" is missing").status(HttpCode.BAD_REQUEST);
@@ -170,6 +179,8 @@ public class SentimentEndPoints {
                 if (langExplanation == null || langExplanation.isBlank()) {
                     langExplanation = "en";
                 }
+                doc = UmigonExplain.enrichDocWithPlainTextSentimentResults(doc, langExplanation.trim());
+
                 if (explanationParam != null && explanationParam.trim().toLowerCase().equals("on")) {
                     String contactPointPlain = "Made with https://nocodefunctions.com. Remarks, questions, corrections: admin@clementlevallois.net";
 
@@ -185,11 +196,19 @@ public class SentimentEndPoints {
 
                         case "html":
                             HtmlSettings htmlSettings = new HtmlSettings();
-                            String explanationInHtml = UmigonExplain.getExplanationOfHeuristicResultsHtml(doc, langExplanation.trim(), htmlSettings);
+                            String explanationInHtml = UmigonExplain.getExplanationOfHeuristicResultsHtml(doc, langExplanation.trim(), htmlSettings, withoutContactAndTextTitleBoolean);
+                            String explanationInPlainText = UmigonExplain.getExplanationOfHeuristicResultsPlainText(doc, langExplanation.trim());
+                            doc.setExplanationSentimentHtml(explanationInHtml);
+                            doc.setExplanationPlainText(explanationInPlainText);
                             ctx.result(explanationInHtml).status(HttpCode.OK).contentType("text/html; charset=utf-8");
                             break;
 
                         case "bytes":
+                            HtmlSettings htmlSettingsForBytes = new HtmlSettings();
+                            String explanationInHtmlForBytes = UmigonExplain.getExplanationOfHeuristicResultsHtml(doc, langExplanation.trim(), htmlSettingsForBytes, withoutContactAndTextTitleBoolean);
+                            String explanationInPlainTextForBytes = UmigonExplain.getExplanationOfHeuristicResultsPlainText(doc, langExplanation.trim());
+                            doc.setExplanationSentimentHtml(explanationInHtmlForBytes);
+                            doc.setExplanationPlainText(explanationInPlainTextForBytes);
                             ctx.result(APIController.byteArraySerializerForDocuments(doc)).status(HttpCode.OK);
                             break;
 
@@ -213,10 +232,12 @@ public class SentimentEndPoints {
                     }
                 } else {
                     if (outputFormat.trim().equals("json")) {
-                        String result = APIController.turnJsonObjectToString(UmigonExplain.getSentimentJsonObject(doc, langExplanation.trim()).build());
+                        JsonObjectBuilder job = Json.createObjectBuilder();
+                        job.add("sentiment", doc.getCategoryLocalizedPlainText());
+                        String result = APIController.turnJsonObjectToString(job.build());
                         ctx.result(result).status(HttpCode.OK).contentType("application/json; charset=utf-8");
                     } else {
-                        String sentimentPlainText = UmigonExplain.getSentimentPlainText(doc, langExplanation.trim());
+                        String sentimentPlainText = doc.getCategoryLocalizedPlainText();
                         ctx.result(sentimentPlainText).status(HttpCode.OK).contentType("text/html; charset=utf-8");
                     }
                 }

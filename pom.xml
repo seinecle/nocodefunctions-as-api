@@ -31,7 +31,7 @@
         <dependency>
             <groupId>net.clementlevallois.pdfmatcher.controller</groupId>
             <artifactId>PdfMatcher</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0</version>
             <type>jar</type>
         </dependency>
         <dependency>
