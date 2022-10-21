@@ -12,14 +12,12 @@ import com.twitter.clientlib.ApiException;
 import com.twitter.clientlib.TwitterCredentialsOAuth2;
 import com.twitter.clientlib.api.TwitterApi;
 import com.twitter.clientlib.auth.TwitterOAuth20Service;
-import com.twitter.clientlib.model.Problem;
-import com.twitter.clientlib.model.Tweet;
 import com.twitter.clientlib.model.TweetSearchResponse;
 import io.javalin.Javalin;
-import io.javalin.http.HttpCode;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -118,6 +116,7 @@ public class TweetRetrieverEndPoints {
             String refreshToken = ctx.queryParam("refreshToken");
 
             // QUERY ON RECENT TWEETS
+
             String query = ctx.queryParam("query");
             String daysStartParam = ctx.queryParam("days_start");
             Integer daysStart = Math.min(Integer.valueOf(daysStartParam), 7);
@@ -131,10 +130,10 @@ public class TweetRetrieverEndPoints {
             ResponseFull responseFull = new TweetRetrieverEndPoints().getRecentTweets(apiInstance, query, daysStart, daysEnd);
             if (responseFull.getResponse() == null) {
                 if (responseFull.getApiException() == null) {
-                    ctx.result("{}").status(HttpCode.INTERNAL_SERVER_ERROR);
+                    ctx.result("{}").status(HttpURLConnection.HTTP_INTERNAL_ERROR);
                 } else {
                     long timetoWait = getTimeToWait(responseFull.getApiException());
-                    ctx.result("{\"time to wait\":" + timetoWait + "}").status(HttpCode.TOO_MANY_REQUESTS);
+                    ctx.result("{\"time to wait\":" + timetoWait + "}").status(HttpURLConnection.HTTP_BAD_REQUEST);
                 }
             } else {
                 TweetSearchResponse recentTweets = responseFull.getResponse();
@@ -144,7 +143,7 @@ public class TweetRetrieverEndPoints {
                 if (recentTweets.getData() == null) {
                     recentTweets.setData(new ArrayList());
                 }
-                ctx.result(recentTweets.toJson()).status(HttpCode.OK);
+                ctx.result(recentTweets.toJson()).status(HttpURLConnection.HTTP_OK);
             }
         });
 

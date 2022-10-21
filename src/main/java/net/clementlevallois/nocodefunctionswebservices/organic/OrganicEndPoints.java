@@ -6,13 +6,13 @@
 package net.clementlevallois.nocodefunctionswebservices.organic;
 
 import io.javalin.Javalin;
-import io.javalin.http.HttpCode;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonReader;
 import java.io.StringReader;
+import java.net.HttpURLConnection;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.TreeMap;
@@ -48,7 +48,7 @@ public class OrganicEndPoints {
             if (body.isEmpty()) {
                 objectBuilder.add("-99", "body of the request should not be empty");
                 JsonObject jsonObject = objectBuilder.build();
-                ctx.result(jsonObject.toString()).status(HttpCode.BAD_REQUEST);
+                ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
             } else {
                 JsonReader jsonReader = Json.createReader(new StringReader(body));
                 JsonObject jsonObject = jsonReader.readObject();
@@ -72,7 +72,7 @@ public class OrganicEndPoints {
                     default:
                         objectBuilder.add("-99", "wrong param for lang - lang not supported");
                         JsonObject jsonObjectWrite = objectBuilder.build();
-                        ctx.result(jsonObjectWrite.toString()).status(HttpCode.BAD_REQUEST);
+                        ctx.result(jsonObjectWrite.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
                 }
 
                 for (Integer key : lines.keySet()) {
@@ -87,7 +87,7 @@ public class OrganicEndPoints {
                         results.put(key, "promoted");
                     }
                 }
-                ctx.json(results).status(HttpCode.OK);
+                ctx.json(results).status(HttpURLConnection.HTTP_OK);
             }
         });
 
@@ -96,7 +96,7 @@ public class OrganicEndPoints {
             increment();
             String text = ctx.queryParam("text");
             if (text == null || text.isBlank()) {
-                ctx.result(CategoryEnum._10.toString()).status(HttpCode.BAD_REQUEST);
+                ctx.result(CategoryEnum._10.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
             } else {
                 String lang = ctx.pathParam("lang");
                 Document doc = new Document();
@@ -111,14 +111,14 @@ public class OrganicEndPoints {
                         break;
 
                     default:
-                        ctx.result("wrong param for lang - lang not supported").status(HttpCode.BAD_REQUEST);
+                        ctx.result("wrong param for lang - lang not supported").status(HttpURLConnection.HTTP_BAD_REQUEST);
                 }
                 Set<ResultOneHeuristics> map1 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._61);
                 Set<ResultOneHeuristics> map2 = doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._611);
                 if (map1.isEmpty() & map2.isEmpty()) {
-                    ctx.result("natural").status(HttpCode.OK);
+                    ctx.result("natural").status(HttpURLConnection.HTTP_OK);
                 } else {
-                    ctx.result("promoted").status(HttpCode.OK);
+                    ctx.result("promoted").status(HttpURLConnection.HTTP_OK);
                 }
             }
         }
@@ -134,7 +134,7 @@ public class OrganicEndPoints {
             }
             docInput.setId(id);
             if (text == null) {
-                ctx.result(APIController.byteArraySerializerForDocuments(docInput)).status(HttpCode.BAD_REQUEST);
+                ctx.result(APIController.byteArraySerializerForDocuments(docInput)).status(HttpURLConnection.HTTP_BAD_REQUEST);
             } else {
                 docInput.setText(text);
                 String lang = ctx.pathParam("lang");
@@ -149,9 +149,9 @@ public class OrganicEndPoints {
                         break;
 
                     default:
-                        ctx.result(APIController.byteArraySerializerForDocuments(docInput)).status(HttpCode.BAD_REQUEST);
+                        ctx.result(APIController.byteArraySerializerForDocuments(docInput)).status(HttpURLConnection.HTTP_BAD_REQUEST);
                 }
-                ctx.result(APIController.byteArraySerializerForDocuments(docOutput)).status(HttpCode.OK);
+                ctx.result(APIController.byteArraySerializerForDocuments(docOutput)).status(HttpURLConnection.HTTP_OK);
             }
         }
         );

@@ -21,17 +21,21 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import net.clementlevallois.nocodefunctionswebservices.cowo.CowoEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.sentiment.SentimentEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.delight.DelightEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.organic.OrganicEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.pdfmatcher.PdfMatcherEndPoints;
+import net.clementlevallois.nocodefunctionswebservices.topics.TopicsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.tweetretriever.TweetRetrieverEndPoints;
 import net.clementlevallois.pdfmatcher.controller.Occurrence;
 import net.clementlevallois.umigon.controller.UmigonController;
 import net.clementlevallois.umigon.model.Document;
+import net.clementlevallois.utils.Multiset;
 
 /**
  *
@@ -42,7 +46,9 @@ public class APIController {
     /**
      * @param args the command line arguments
      */
-    private static Javalin app = Javalin.create().start(7002);
+    private static Javalin app = Javalin.create(config -> {
+        config.http.maxRequestSize = 1000000000;
+    }).start(7002);
     private static TwitterApi twitterApiInstance;
     private static TwitterCredentialsOAuth2 twitterApiCredentials;
     public static String pwdOwner;
@@ -63,6 +69,8 @@ public class APIController {
         app = OrganicEndPoints.addAll(app, umigonController);
         app = DelightEndPoints.addAll(app, umigonController);
         app = PdfMatcherEndPoints.addAll(app);
+        app = CowoEndPoint.addAll(app);
+        app = TopicsEndPoint.addAll(app);
         app = TweetRetrieverEndPoints.addAll(app, twitterApiInstance, twitterApiCredentials);
         System.out.println("running the api");
 
@@ -98,6 +106,15 @@ public class APIController {
     }
 
     public static byte[] byteArraySerializerForListOfOccurrences(List<Occurrence> o) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(bos);
+        oos.writeObject(o);
+        oos.flush();
+        byte[] data = bos.toByteArray();
+        return data;
+    }
+
+    public static byte[] byteArraySerializerForTopics(Map<Integer, Multiset<String>> o) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(bos);
         oos.writeObject(o);

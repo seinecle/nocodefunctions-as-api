@@ -6,13 +6,13 @@
 package net.clementlevallois.nocodefunctionswebservices.pdfmatcher;
 
 import io.javalin.Javalin;
-import io.javalin.http.HttpCode;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonReader;
 import java.io.StringReader;
+import java.net.HttpURLConnection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TreeMap;
@@ -41,7 +41,7 @@ public class PdfMatcherEndPoints {
             if (body.isEmpty()) {
                 objectBuilder.add("-99", "body of the request should not be empty");
                 JsonObject jsonObject = objectBuilder.build();
-                ctx.result(jsonObject.toString()).status(HttpCode.BAD_REQUEST);
+                ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
             } else {
                 JsonReader jsonReader = Json.createReader(new StringReader(body));
                 JsonObject jsonObject = jsonReader.readObject();
@@ -51,17 +51,13 @@ public class PdfMatcherEndPoints {
                     String nextKey = iteratorKeys.next();
                     if (nextKey.equals("lines")) {
                         JsonObject linesJson = jsonObject.getJsonObject(nextKey);
-                        Iterator<String> iteratorLines = linesJson.keySet().iterator();
-                        while (iteratorLines.hasNext()) {
-                            String nextLineKey = iteratorLines.next();
+                        for (String nextLineKey : linesJson.keySet()) {
                             lines.put(Integer.valueOf(nextLineKey), linesJson.getString(nextLineKey));
                         }
                     }
                     if (nextKey.equals("pages")) {
                         JsonObject pagesJson = jsonObject.getJsonObject(nextKey);
-                        Iterator<String> iteratorPages = pagesJson.keySet().iterator();
-                        while (iteratorPages.hasNext()) {
-                            String nextPageKey = iteratorPages.next();
+                        for (String nextPageKey : pagesJson.keySet()) {
                             pages.put(Integer.valueOf(nextPageKey), pagesJson.getInt(nextPageKey));
                         }
                     }
@@ -75,7 +71,7 @@ public class PdfMatcherEndPoints {
 
                 PdfMatcher pdfMatcher = new PdfMatcher();
                 List<Occurrence> occurrences = pdfMatcher.analyze(pages, searchedTerm, lines, nbContext);
-                ctx.result(APIController.byteArraySerializerForListOfOccurrences(occurrences)).status(HttpCode.OK);
+                ctx.result(APIController.byteArraySerializerForListOfOccurrences(occurrences)).status(HttpURLConnection.HTTP_OK);
             }
         });
 

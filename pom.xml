@@ -8,14 +8,14 @@
     <name>Nocode functions as an API</name>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.source>19</maven.compiler.source>
+        <maven.compiler.target>19</maven.compiler.target>
     </properties>
     <dependencies>
         <dependency>
             <groupId>io.javalin</groupId>
             <artifactId>javalin</artifactId>
-            <version>4.5.0</version>
+            <version>5.0.1</version>
         </dependency>
         <dependency>
             <groupId>net.clementlevallois.umigonfamily</groupId>
@@ -35,6 +35,12 @@
             <type>jar</type>
         </dependency>
         <dependency>
+            <groupId>net.clementlevallois.cowo</groupId>
+            <artifactId>cowo-core</artifactId>
+            <version>1.0</version>
+            <type>jar</type>
+        </dependency>
+        <dependency>
             <groupId>jakarta.json</groupId>
             <artifactId>jakarta.json-api</artifactId>
             <version>2.1.0</version>
@@ -45,6 +51,11 @@
             <groupId>org.eclipse.parsson</groupId>
             <artifactId>parsson</artifactId>
             <version>1.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.json.bind</groupId>
+            <artifactId>jakarta.json.bind-api</artifactId>
+            <version>2.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -61,13 +72,27 @@
             <artifactId>twitter-api-java-sdk</artifactId>
             <version>1.2.4</version>
         </dependency>
+        <dependency>
+            <groupId>net.clementlevallois.topics</groupId>
+            <artifactId>topic-detection-function</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>net.clementlevallois.utils</groupId>
+            <artifactId>utils-core</artifactId>
+            <version>1.0</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>3.10.1</version>
+                <configuration>
+                    <release>19</release> <!-- <release>13/14/15</release> -->
+                    <compilerArgs>--enable-preview</compilerArgs>
+                </configuration>            
             </plugin>
             <plugin> 
                 <artifactId>maven-dependency-plugin</artifactId> 
@@ -86,7 +111,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.2.0</version>
+                <version>3.3.0</version>
                 <configuration>
                     <archive>
                         <manifest>
