@@ -43,7 +43,7 @@ public class CowoEndPoint {
             boolean isScientificCorpus = false;
 
             byte[] bodyAsBytes = ctx.bodyAsBytes();
-            String body = new String(bodyAsBytes, StandardCharsets.US_ASCII);
+            String body = new String(bodyAsBytes, StandardCharsets.UTF_8);
             if (body.isEmpty()) {
                 objectBuilder.add("-99", "body of the request should not be empty");
                 JsonObject jsonObject = objectBuilder.build();
