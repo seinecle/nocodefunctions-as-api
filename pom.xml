@@ -1,16 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>net.clementlevallois</groupId>
+    <parent>
+        <groupId>net.clementlevallois.functions</groupId>
+        <artifactId>parentbuild</artifactId>
+        <version>1.0</version>
+    </parent>    
     <artifactId>NocodeFunctionsWebServices</artifactId>
     <version>1.0</version>
     <packaging>jar</packaging>
     <name>Nocode functions as an API</name>
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>19</maven.compiler.source>
-        <maven.compiler.target>19</maven.compiler.target>
-    </properties>
     <dependencies>
         <dependency>
             <groupId>io.javalin</groupId>
@@ -29,19 +28,19 @@
             <type>jar</type>
         </dependency>
         <dependency>
-            <groupId>net.clementlevallois.pdfmatcher.controller</groupId>
+            <groupId>net.clementlevallois.functions</groupId>
             <artifactId>PdfMatcher</artifactId>
             <version>1.0</version>
             <type>jar</type>
         </dependency>
         <dependency>
-            <groupId>net.clementlevallois.cowo</groupId>
+            <groupId>net.clementlevallois.functions</groupId>
             <artifactId>cowo-core</artifactId>
             <version>1.0</version>
             <type>jar</type>
         </dependency>
         <dependency>
-            <groupId>net.clementlevallois</groupId>
+            <groupId>net.clementlevallois.functions</groupId>
             <artifactId>Linkprediction</artifactId>
             <version>1.0</version>
             <type>jar</type>
@@ -79,13 +78,23 @@
             <version>1.2.4</version>
         </dependency>
         <dependency>
-            <groupId>net.clementlevallois.topics</groupId>
+            <groupId>net.clementlevallois.functions</groupId>
             <artifactId>topic-detection-function</artifactId>
             <version>1.0</version>
         </dependency>
         <dependency>
             <groupId>net.clementlevallois.utils</groupId>
             <artifactId>utils-core</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>net.clementlevallois.functions</groupId>
+            <artifactId>GexfVosViewerJson</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>net.clementlevallois.functions</groupId>
+            <artifactId>gaze</artifactId>
             <version>1.0</version>
         </dependency>
     </dependencies>
@@ -96,7 +105,6 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.10.1</version>
                 <configuration>
-                    <release>19</release> <!-- <release>13/14/15</release> -->
                     <compilerArgs>--enable-preview</compilerArgs>
                 </configuration>            
             </plugin>

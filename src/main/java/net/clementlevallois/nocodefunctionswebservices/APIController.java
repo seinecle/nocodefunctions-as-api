@@ -32,6 +32,7 @@ import net.clementlevallois.nocodefunctionswebservices.organic.OrganicEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.pdfmatcher.PdfMatcherEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.topics.TopicsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.tweetretriever.TweetRetrieverEndPoints;
+import net.clementlevallois.nocodefunctionswebservices.vvconversion.VosViewerConversionEndPoint;
 import net.clementlevallois.pdfmatcher.controller.Occurrence;
 import net.clementlevallois.umigon.controller.UmigonController;
 import net.clementlevallois.umigon.model.Document;
@@ -46,31 +47,37 @@ public class APIController {
     /**
      * @param args the command line arguments
      */
-    private static Javalin app = Javalin.create(config -> {
-        config.http.maxRequestSize = 1000000000;
-    }).start(7002);
-    private static TwitterApi twitterApiInstance;
-    private static TwitterCredentialsOAuth2 twitterApiCredentials;
+    private static Javalin app;
     public static String pwdOwner;
 
     public static void main(String[] args) throws Exception {
-        UmigonController umigonController = new UmigonController();
         Properties props = new Properties();
         props.load(new FileInputStream("private/props.properties"));
+        String port = props.getProperty("port");
+
+        app = Javalin.create(config -> {
+            config.http.maxRequestSize = 1000000000;
+        }).start(Integer.parseInt(port));
+
         pwdOwner = props.getProperty("pwdOwner");
+
         String twitterClientId = props.getProperty("twitter_client_id");
         String twitterClientSecret = props.getProperty("twitter_client_secret");
 
+        TwitterApi twitterApiInstance;
+        TwitterCredentialsOAuth2 twitterApiCredentials;
         twitterApiCredentials = new TwitterCredentialsOAuth2(twitterClientId,
                 twitterClientSecret, "", "");
         twitterApiInstance = new TwitterApi();
 
+        UmigonController umigonController = new UmigonController();
         app = SentimentEndPoints.addAll(app, umigonController);
         app = OrganicEndPoints.addAll(app, umigonController);
         app = DelightEndPoints.addAll(app, umigonController);
         app = PdfMatcherEndPoints.addAll(app);
         app = CowoEndPoint.addAll(app);
         app = TopicsEndPoint.addAll(app);
+        app = VosViewerConversionEndPoint.addAll(app);
         app = TweetRetrieverEndPoints.addAll(app, twitterApiInstance, twitterApiCredentials);
         System.out.println("running the api");
 
