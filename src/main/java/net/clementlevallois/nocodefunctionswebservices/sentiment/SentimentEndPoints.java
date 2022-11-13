@@ -64,18 +64,15 @@ public class SentimentEndPoints {
                 String lang = ctx.pathParam("lang");
                 ClassifierSentimentOneDocument classifier = null;
                 switch (lang) {
-                    case "en":
-                        classifier = classifierOneDocEN;
-                        break;
+                    case "en" -> classifier = classifierOneDocEN;
 
-                    case "fr":
-                        classifier = classifierOneDocFR;
-                        break;
+                    case "fr" -> classifier = classifierOneDocFR;
 
-                    default:
+                    default -> {
                         objectBuilder.add("-99", "wrong param for lang - lang not supported");
                         JsonObject jsonObjectWrite = objectBuilder.build();
                         ctx.result(jsonObjectWrite.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                    }
                 }
 
                 for (Integer key : lines.keySet()) {

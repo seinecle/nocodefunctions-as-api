@@ -39,23 +39,26 @@ public class VosViewerConversionEndPoint {
                 ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
             } else {
                 String item = ctx.pathParam("item");
+                String items = ctx.pathParam("items");
                 String link = ctx.pathParam("link");
+                String links = ctx.pathParam("links");
                 String linkStrength = ctx.pathParam("linkStrength");
+                String totalLinkStrength = ctx.pathParam("totalLinkStrength");
+                String descriptionData = ctx.pathParam("descriptionData");
 
                 InputStream isOfTheGexf = new ByteArrayInputStream(bodyAsBytes);
                 GexfToVOSViewerJson converter = new GexfToVOSViewerJson(isOfTheGexf);
                 converter.setMaxNumberNodes(500);
                 converter.setTerminologyData(new Terminology());
                 converter.getTerminologyData().setItem(item);
-                converter.getTerminologyData().setItems("");
+                converter.getTerminologyData().setItems(items);
                 converter.getTerminologyData().setLink(link);
-                converter.getTerminologyData().setLinks("");
+                converter.getTerminologyData().setLinks(links);
                 converter.getTerminologyData().setLink_strength(linkStrength);
-                converter.getTerminologyData().setTotal_link_strength("");
+                converter.getTerminologyData().setTotal_link_strength(totalLinkStrength);
                 converter.setMetadataData(new Metadata());
                 converter.getMetadataData().setAuthorCanBePlural("");
-                converter.getMetadataData().setDescriptionOfData("Made with nocodefunctions.com");
-
+                converter.getMetadataData().setDescriptionOfData(descriptionData);
                 String graphAsJsonVosViewer = converter.convertToJson();
 
                 ctx.result(graphAsJsonVosViewer.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);

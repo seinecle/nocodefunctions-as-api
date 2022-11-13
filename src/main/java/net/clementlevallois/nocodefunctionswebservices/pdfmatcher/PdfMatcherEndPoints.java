@@ -17,8 +17,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import net.clementlevallois.functions.model.Occurrence;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
-import net.clementlevallois.pdfmatcher.controller.Occurrence;
 import net.clementlevallois.pdfmatcher.controller.PdfMatcher;
 
 /**

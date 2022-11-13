@@ -25,15 +25,19 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import net.clementlevallois.functions.model.Occurrence;
+import net.clementlevallois.nocodefunctionswebservices.bibd.BIBDEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.cowo.CowoEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.sentiment.SentimentEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.delight.DelightEndPoints;
+import net.clementlevallois.nocodefunctionswebservices.gaze.GazeEndPoint;
+import net.clementlevallois.nocodefunctionswebservices.graphops.GraphOpsEndPoint;
+import net.clementlevallois.nocodefunctionswebservices.linkprediction.LinkPredictionEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.organic.OrganicEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.pdfmatcher.PdfMatcherEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.topics.TopicsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.tweetretriever.TweetRetrieverEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.vvconversion.VosViewerConversionEndPoint;
-import net.clementlevallois.pdfmatcher.controller.Occurrence;
 import net.clementlevallois.umigon.controller.UmigonController;
 import net.clementlevallois.umigon.model.Document;
 import net.clementlevallois.utils.Multiset;
@@ -66,8 +70,7 @@ public class APIController {
 
         TwitterApi twitterApiInstance;
         TwitterCredentialsOAuth2 twitterApiCredentials;
-        twitterApiCredentials = new TwitterCredentialsOAuth2(twitterClientId,
-                twitterClientSecret, "", "");
+        twitterApiCredentials = new TwitterCredentialsOAuth2(twitterClientId,twitterClientSecret, "", "");
         twitterApiInstance = new TwitterApi();
 
         UmigonController umigonController = new UmigonController();
@@ -77,6 +80,10 @@ public class APIController {
         app = PdfMatcherEndPoints.addAll(app);
         app = CowoEndPoint.addAll(app);
         app = TopicsEndPoint.addAll(app);
+        app = GraphOpsEndPoint.addAll(app);
+        app = LinkPredictionEndPoint.addAll(app);
+        app = GazeEndPoint.addAll(app);
+        app = BIBDEndPoint.addAll(app);
         app = VosViewerConversionEndPoint.addAll(app);
         app = TweetRetrieverEndPoints.addAll(app, twitterApiInstance, twitterApiCredentials);
         System.out.println("running the api");
@@ -104,6 +111,15 @@ public class APIController {
     }
 
     public static byte[] byteArraySerializerForTweets(List<Tweet> o) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ObjectOutputStream oos = new ObjectOutputStream(bos);
+        oos.writeObject(o);
+        oos.flush();
+        byte[] data = bos.toByteArray();
+        return data;
+    }
+
+    public static byte[] byteArraySerializerForAnyObject(Object o) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(bos);
         oos.writeObject(o);
@@ -140,7 +156,6 @@ public class APIController {
             Logger.getLogger(APIController.class.getName()).log(Level.SEVERE, null, ex);
         }
         return output;
-
     }
 
 }

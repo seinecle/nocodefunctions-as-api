@@ -6,6 +6,7 @@
 package net.clementlevallois.nocodefunctionswebservices.gaze;
 
 import io.javalin.Javalin;
+import io.javalin.http.Context;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import net.clementlevallois.gaze.controller.CoocFunction;
 import net.clementlevallois.gaze.controller.SimilarityFunction;
 import net.clementlevallois.utils.Multiset;
 
@@ -33,7 +35,7 @@ public class GazeEndPoint {
 
     public static Javalin addAll(Javalin app) throws Exception {
 
-        app.post("/api/gaze/cooc", ctx -> {
+        app.post("/api/gaze/cooc", (Context ctx) -> {
             JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
             Map<Integer, Multiset<String>> lines = new TreeMap();
@@ -63,8 +65,8 @@ public class GazeEndPoint {
                     }
                 }
 
-                SimilarityFunction simFunction = new SimilarityFunction();
-                String gexf = simFunction.createSimilarityGraph(lines);
+                CoocFunction coocFunction = new CoocFunction();
+                String gexf = coocFunction.createGraphFromCooccurrences(lines, false);
                 ctx.result(gexf.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
             }
         });
