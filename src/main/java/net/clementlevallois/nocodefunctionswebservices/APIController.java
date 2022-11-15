@@ -76,7 +76,6 @@ public class APIController {
         UmigonController umigonController = new UmigonController();
         app = SentimentEndPoints.addAll(app, umigonController);
         app = OrganicEndPoints.addAll(app, umigonController);
-        app = DelightEndPoints.addAll(app, umigonController);
         app = PdfMatcherEndPoints.addAll(app);
         app = CowoEndPoint.addAll(app);
         app = TopicsEndPoint.addAll(app);

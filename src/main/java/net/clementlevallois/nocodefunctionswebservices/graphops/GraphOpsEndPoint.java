@@ -28,7 +28,7 @@ public class GraphOpsEndPoint {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
 
             byte[] bodyAsBytes = ctx.bodyAsBytes();
-            String nbNodes = ctx.pathParam("nbNodes");
+            String nbNodes = ctx.queryParam("nbNodes");
             String gexfAsString = new String(bodyAsBytes, StandardCharsets.UTF_8);
             if (gexfAsString.isEmpty()) {
                 objectBuilder.add("-99", "body of the request should not be empty");

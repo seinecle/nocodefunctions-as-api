@@ -38,13 +38,13 @@ public class VosViewerConversionEndPoint {
                 JsonObject jsonObject = objectBuilder.build();
                 ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
             } else {
-                String item = ctx.pathParam("item");
-                String items = ctx.pathParam("items");
-                String link = ctx.pathParam("link");
-                String links = ctx.pathParam("links");
-                String linkStrength = ctx.pathParam("linkStrength");
-                String totalLinkStrength = ctx.pathParam("totalLinkStrength");
-                String descriptionData = ctx.pathParam("descriptionData");
+                String item = ctx.queryParam("item");
+                String items = ctx.queryParam("items");
+                String link = ctx.queryParam("link");
+                String links = ctx.queryParam("links");
+                String linkStrength = ctx.queryParam("linkStrength");
+                String totalLinkStrength = ctx.queryParam("totalLinkStrength");
+                String descriptionData = ctx.queryParam("descriptionData");
 
                 InputStream isOfTheGexf = new ByteArrayInputStream(bodyAsBytes);
                 GexfToVOSViewerJson converter = new GexfToVOSViewerJson(isOfTheGexf);

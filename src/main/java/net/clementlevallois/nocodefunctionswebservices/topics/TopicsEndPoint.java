@@ -5,7 +5,6 @@
  */
 package net.clementlevallois.nocodefunctionswebservices.topics;
 
-import net.clementlevallois.nocodefunctionswebservices.cowo.*;
 import io.javalin.Javalin;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
@@ -13,16 +12,13 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonReader;
 import java.io.StringReader;
-import java.math.BigDecimal;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import net.clementlevallois.cowo.controller.CowoFunction;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import net.clementlevallois.topics.topic.detection.function.controller.TopicDetectionFunction;
 import net.clementlevallois.utils.Multiset;
