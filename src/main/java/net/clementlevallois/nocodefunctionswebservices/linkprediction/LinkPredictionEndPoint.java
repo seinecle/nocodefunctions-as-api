@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import net.clementlevallois.linkprediction.controller.LinkPredictionController;
@@ -37,7 +38,7 @@ public class LinkPredictionEndPoint {
                 JsonObject jsonObject = objectBuilder.build();
                 ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
             } else {
-                int nbPredictions = Integer.parseInt(ctx.pathParam("nb_predictions"));
+                int nbPredictions = Objects.requireNonNullElse(Integer.valueOf(ctx.queryParam("nb_predictions")), 1);
 
                 InputStream isOfTheGexf = new ByteArrayInputStream(bodyAsBytes);
                 LinkPredictionController predictor = new LinkPredictionController();

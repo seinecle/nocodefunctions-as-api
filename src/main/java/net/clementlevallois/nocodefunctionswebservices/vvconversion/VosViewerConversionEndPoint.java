@@ -14,6 +14,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import net.clementlevallois.gexfvosviewerjson.GexfToVOSViewerJson;
 import net.clementlevallois.gexfvosviewerjson.Metadata;
@@ -38,13 +39,13 @@ public class VosViewerConversionEndPoint {
                 JsonObject jsonObject = objectBuilder.build();
                 ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
             } else {
-                String item = ctx.queryParam("item");
-                String items = ctx.queryParam("items");
-                String link = ctx.queryParam("link");
-                String links = ctx.queryParam("links");
-                String linkStrength = ctx.queryParam("linkStrength");
-                String totalLinkStrength = ctx.queryParam("totalLinkStrength");
-                String descriptionData = ctx.queryParam("descriptionData");
+                String item = Optional.ofNullable(ctx.queryParam("item")).orElse("item");
+                String items = Optional.ofNullable(ctx.queryParam("items")).orElse("items");
+                String link = Optional.ofNullable(ctx.queryParam("link")).orElse("link");
+                String links = Optional.ofNullable(ctx.queryParam("links")).orElse("links");
+                String linkStrength = Optional.ofNullable(ctx.queryParam("linkStrength")).orElse("link strength");
+                String totalLinkStrength = Optional.ofNullable(ctx.queryParam("totalLinkStrength")).orElse("total link strength");
+                String descriptionData = Optional.ofNullable(ctx.queryParam("descriptionData")).orElse("description");
 
                 InputStream isOfTheGexf = new ByteArrayInputStream(bodyAsBytes);
                 GexfToVOSViewerJson converter = new GexfToVOSViewerJson(isOfTheGexf);
