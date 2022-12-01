@@ -20,8 +20,8 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import static net.clementlevallois.nocodefunctionswebservices.APIController.increment;
+import net.clementlevallois.umigon.classifier.controller.UmigonController;
 import net.clementlevallois.umigon.classifier.sentiment.ClassifierSentimentOneDocument;
-import net.clementlevallois.umigon.controller.UmigonController;
 import net.clementlevallois.umigon.explain.controller.UmigonExplain;
 import net.clementlevallois.umigon.explain.parameters.HtmlSettings;
 import net.clementlevallois.umigon.model.Category;
@@ -37,6 +37,7 @@ public class SentimentEndPoints {
 
         ClassifierSentimentOneDocument classifierOneDocEN = new ClassifierSentimentOneDocument(umigonController.getSemanticsEN());
         ClassifierSentimentOneDocument classifierOneDocFR = new ClassifierSentimentOneDocument(umigonController.getSemanticsFR());
+        ClassifierSentimentOneDocument classifierOneDocES = new ClassifierSentimentOneDocument(umigonController.getSemanticsES());
 
         app.post("/api/sentimentForAText/{lang}", ctx -> {
             String owner = ctx.queryParam("owner");
@@ -67,6 +68,8 @@ public class SentimentEndPoints {
                     case "en" -> classifier = classifierOneDocEN;
 
                     case "fr" -> classifier = classifierOneDocFR;
+
+                    case "es" -> classifier = classifierOneDocES;
 
                     default -> {
                         objectBuilder.add("-99", "wrong param for lang - lang not supported");
@@ -100,16 +103,13 @@ public class SentimentEndPoints {
                 Document doc = new Document();
                 doc.setText(text);
                 switch (lang) {
-                    case "en":
-                        doc = classifierOneDocEN.call(doc);
-                        break;
+                    case "en" -> doc = classifierOneDocEN.call(doc);
 
-                    case "fr":
-                        doc = classifierOneDocFR.call(doc);
-                        break;
+                    case "fr" -> doc = classifierOneDocFR.call(doc);
 
-                    default:
-                        ctx.result("wrong param for lang - lang not supported").status(HttpURLConnection.HTTP_BAD_REQUEST);
+                    case "es" -> doc = classifierOneDocES.call(doc);
+
+                    default -> ctx.result("wrong param for lang - lang not supported").status(HttpURLConnection.HTTP_BAD_REQUEST);
                 }
                 if (!doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._11).isEmpty()) {
                     ctx.result("positive tone" + alert).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
@@ -161,6 +161,8 @@ public class SentimentEndPoints {
                 case "en" -> doc = classifierOneDocEN.call(doc);
 
                 case "fr" -> doc = classifierOneDocFR.call(doc);
+
+                case "es" -> doc = classifierOneDocES.call(doc);
             }
             String explanationParam = ctx.queryParam("explanation");
             String langExplanation = ctx.queryParam("explanation-lang");
@@ -248,16 +250,13 @@ public class SentimentEndPoints {
                 Document doc = new Document();
                 doc.setText(text);
                 switch (lang) {
-                    case "en":
-                        doc = classifierOneDocEN.call(doc);
-                        break;
+                    case "en" -> doc = classifierOneDocEN.call(doc);
 
-                    case "fr":
-                        doc = classifierOneDocFR.call(doc);
-                        break;
+                    case "fr" -> doc = classifierOneDocFR.call(doc);
 
-                    default:
-                        ctx.json("\"wrong param for lang\":\"lang not supported\"").status(HttpURLConnection.HTTP_BAD_REQUEST);
+                    case "es" -> doc = classifierOneDocES.call(doc);
+
+                    default -> ctx.json("\"wrong param for lang\":\"lang not supported\"").status(HttpURLConnection.HTTP_BAD_REQUEST);
                 }
                 String explanationParam = ctx.queryParam("explanation");
                 String langExplanation = ctx.queryParam("explanation_lang");
@@ -297,22 +296,18 @@ public class SentimentEndPoints {
                 String lang = ctx.pathParam("lang");
                 Document docOutput = null;
                 switch (lang) {
-                    case "en":
-                        docOutput = classifierOneDocEN.call(docInput);
-                        break;
+                    case "en" -> docOutput = classifierOneDocEN.call(docInput);
 
-                    case "fr":
-                        docOutput = classifierOneDocFR.call(docInput);
-                        break;
+                    case "fr" -> docOutput = classifierOneDocFR.call(docInput);
 
-                    default:
-                        ctx.result(APIController.byteArraySerializerForDocuments(docInput)).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                    case "es" -> docOutput = classifierOneDocES.call(docInput);
+
+                    default -> ctx.result(APIController.byteArraySerializerForDocuments(docInput)).status(HttpURLConnection.HTTP_BAD_REQUEST);
                 }
                 ctx.result(APIController.byteArraySerializerForDocuments(docOutput)).status(HttpURLConnection.HTTP_OK);
             }
         }
         );
-
         return app;
     }
 }
