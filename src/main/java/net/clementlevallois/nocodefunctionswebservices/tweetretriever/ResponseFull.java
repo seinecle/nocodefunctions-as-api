@@ -4,7 +4,7 @@
 package net.clementlevallois.nocodefunctionswebservices.tweetretriever;
 
 import com.twitter.clientlib.ApiException;
-import com.twitter.clientlib.model.TweetSearchResponse;
+import com.twitter.clientlib.model.Get2TweetsSearchRecentResponse;
 
 /**
  *
@@ -12,14 +12,14 @@ import com.twitter.clientlib.model.TweetSearchResponse;
  */
 public class ResponseFull {
     
-    TweetSearchResponse response;
+    Get2TweetsSearchRecentResponse response;
     ApiException apiException;
 
-    public TweetSearchResponse getResponse() {
+    public Get2TweetsSearchRecentResponse getResponse() {
         return response;
     }
 
-    public void setResponse(TweetSearchResponse response) {
+    public void setResponse(Get2TweetsSearchRecentResponse response) {
         this.response = response;
     }
 

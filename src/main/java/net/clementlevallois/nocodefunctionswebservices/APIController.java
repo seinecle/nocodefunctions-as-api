@@ -29,7 +29,6 @@ import net.clementlevallois.functions.model.Occurrence;
 import net.clementlevallois.nocodefunctionswebservices.bibd.BIBDEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.cowo.CowoEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.sentiment.SentimentEndPoints;
-import net.clementlevallois.nocodefunctionswebservices.delight.DelightEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.gaze.GazeEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.graphops.GraphOpsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.linkprediction.LinkPredictionEndPoint;
@@ -38,7 +37,7 @@ import net.clementlevallois.nocodefunctionswebservices.pdfmatcher.PdfMatcherEndP
 import net.clementlevallois.nocodefunctionswebservices.topics.TopicsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.tweetretriever.TweetRetrieverEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.vvconversion.VosViewerConversionEndPoint;
-import net.clementlevallois.umigon.controller.UmigonController;
+import net.clementlevallois.umigon.classifier.controller.UmigonController;
 import net.clementlevallois.umigon.model.Document;
 import net.clementlevallois.utils.Multiset;
 
@@ -67,11 +66,7 @@ public class APIController {
 
         String twitterClientId = props.getProperty("twitter_client_id");
         String twitterClientSecret = props.getProperty("twitter_client_secret");
-
-        TwitterApi twitterApiInstance;
-        TwitterCredentialsOAuth2 twitterApiCredentials;
-        twitterApiCredentials = new TwitterCredentialsOAuth2(twitterClientId,twitterClientSecret, "", "");
-        twitterApiInstance = new TwitterApi();
+        TwitterCredentialsOAuth2 twitterApiOAuth2Credentials = new TwitterCredentialsOAuth2(twitterClientId, twitterClientSecret, "", "");
 
         UmigonController umigonController = new UmigonController();
         app = SentimentEndPoints.addAll(app, umigonController);
@@ -84,7 +79,7 @@ public class APIController {
         app = GazeEndPoint.addAll(app);
         app = BIBDEndPoint.addAll(app);
         app = VosViewerConversionEndPoint.addAll(app);
-        app = TweetRetrieverEndPoints.addAll(app, twitterApiInstance, twitterApiCredentials);
+        app = TweetRetrieverEndPoints.addAll(app, twitterApiOAuth2Credentials);
         System.out.println("running the api");
 
     }

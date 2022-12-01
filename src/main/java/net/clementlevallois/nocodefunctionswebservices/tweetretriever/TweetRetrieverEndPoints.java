@@ -12,8 +12,10 @@ import com.twitter.clientlib.ApiException;
 import com.twitter.clientlib.TwitterCredentialsOAuth2;
 import com.twitter.clientlib.api.TwitterApi;
 import com.twitter.clientlib.auth.TwitterOAuth20Service;
-import com.twitter.clientlib.model.TweetSearchResponse;
+import com.twitter.clientlib.model.Get2TweetsSearchRecentResponse;
 import io.javalin.Javalin;
+import io.javalin.http.Context;
+import io.javalin.http.Handler;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -73,8 +75,7 @@ public class TweetRetrieverEndPoints {
 
             twitterApiOAuth2Credentials.setTwitterOauth2AccessToken(accessToken.getAccessToken());
             twitterApiOAuth2Credentials.setTwitterOauth2RefreshToken(accessToken.getRefreshToken());
-            TwitterApi apiInstance = new TwitterApi ();
-            apiInstance.setTwitterCredentials(twitterApiOAuth2Credentials);
+            TwitterApi apiInstance = new TwitterApi(twitterApiOAuth2Credentials);
 
             ResponseFull responseFull = new TweetRetrieverEndPoints().getRecentTweets(apiInstance, "seinecle", 7, 0);
 
@@ -107,43 +108,46 @@ public class TweetRetrieverEndPoints {
 
     }
 
-    public static Javalin addAll(Javalin app, TwitterApi apiInstance, TwitterCredentialsOAuth2 twitterApiOAuth2Credentials) throws Exception {
+    public static Javalin addAll(Javalin app, TwitterCredentialsOAuth2 twitterApiOAuth2Credentials) throws Exception {
 
-        app.get("/api/tweets/json", ctx -> {
-            increment();
-            //OAUTH2
-            String accessToken = ctx.queryParam("accessToken");
-            String refreshToken = ctx.queryParam("refreshToken");
+        app.get("/api/tweets/json", new Handler() {
+            @Override
+            public void handle(Context ctx) throws Exception {
+                increment();
+                //OAUTH2
+                String accessToken = ctx.queryParam("accessToken");
+                String refreshToken = ctx.queryParam("refreshToken");
 
-            // QUERY ON RECENT TWEETS
+                // QUERY ON RECENT TWEETS
+                String query = ctx.queryParam("query");
+                String daysStartParam = ctx.queryParam("days_start");
+                Integer daysStart = Math.min(Integer.parseInt(daysStartParam), 7);
+                String daysEndParam = ctx.queryParam("days_end");
+                Integer daysEnd = Math.max(Integer.parseInt(daysEndParam), 0);
 
-            String query = ctx.queryParam("query");
-            String daysStartParam = ctx.queryParam("days_start");
-            Integer daysStart = Math.min(Integer.valueOf(daysStartParam), 7);
-            String daysEndParam = ctx.queryParam("days_end");
-            Integer daysEnd = Math.max(Integer.valueOf(daysEndParam), 0);
+                twitterApiOAuth2Credentials.setTwitterOauth2AccessToken(accessToken);
+                twitterApiOAuth2Credentials.setTwitterOauth2RefreshToken(refreshToken);
+                TwitterApi twitterApiInstance = new TwitterApi(twitterApiOAuth2Credentials);
 
-            twitterApiOAuth2Credentials.setTwitterOauth2AccessToken(accessToken);
-            twitterApiOAuth2Credentials.setTwitterOauth2RefreshToken(refreshToken);
-            apiInstance.setTwitterCredentials(twitterApiOAuth2Credentials);
 
-            ResponseFull responseFull = new TweetRetrieverEndPoints().getRecentTweets(apiInstance, query, daysStart, daysEnd);
-            if (responseFull.getResponse() == null) {
-                if (responseFull.getApiException() == null) {
-                    ctx.result("{}").status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                ResponseFull responseFull = new TweetRetrieverEndPoints().getRecentTweets(twitterApiInstance, query, daysStart, daysEnd);
+                if (responseFull.getResponse() == null) {
+                    if (responseFull.getApiException() == null) {
+                        ctx.result("{}").status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                    } else {
+                        long timetoWait = getTimeToWait(responseFull.getApiException());
+                        ctx.result("{\"time to wait\":" + timetoWait + "}").status(HttpURLConnection.HTTP_BAD_REQUEST);
+                    }
                 } else {
-                    long timetoWait = getTimeToWait(responseFull.getApiException());
-                    ctx.result("{\"time to wait\":" + timetoWait + "}").status(HttpURLConnection.HTTP_BAD_REQUEST);
+                    Get2TweetsSearchRecentResponse recentTweets = responseFull.getResponse();
+                    if (recentTweets.getErrors() == null) {
+                        recentTweets.setErrors(new ArrayList());
+                    }
+                    if (recentTweets.getData() == null) {
+                        recentTweets.setData(new ArrayList());
+                    }
+                    ctx.result(recentTweets.toJson()).status(HttpURLConnection.HTTP_OK);
                 }
-            } else {
-                TweetSearchResponse recentTweets = responseFull.getResponse();
-                if (recentTweets.getErrors() == null) {
-                    recentTweets.setErrors(new ArrayList());
-                }
-                if (recentTweets.getData() == null) {
-                    recentTweets.setData(new ArrayList());
-                }
-                ctx.result(recentTweets.toJson()).status(HttpURLConnection.HTTP_OK);
             }
         });
 
@@ -152,7 +156,6 @@ public class TweetRetrieverEndPoints {
 
     private ResponseFull getRecentTweets(TwitterApi apiInstance, String query, int daysStart, int daysEnd) {
         // Set the params values
-        TweetSearchResponse result = null;
         ResponseFull responseFull = new ResponseFull();
         OffsetDateTime startTime = OffsetDateTime.now().minus(Duration.ofDays(daysStart)); // OffsetDateTime | YYYY-MM-DDTHH:mm:ssZ. The oldest UTC timestamp (from most recent 7 days) from which the Tweets will be provided. Timestamp is in second granularity and is inclusive (i.e. 12:00:01 includes the first second of the minute).
         OffsetDateTime endTime = OffsetDateTime.now().minus(Duration.ofDays(daysEnd)).minus(Duration.ofSeconds(11)); // OffsetDateTime | YYYY-MM-DDTHH:mm:ssZ. The newest, most recent UTC timestamp to which the Tweets will be provided. Timestamp is in second granularity and is exclusive (i.e. 12:00:01 excludes the first second of the minute).
@@ -169,8 +172,23 @@ public class TweetRetrieverEndPoints {
         Set<String> placeFields = Set.of("id", "name", "country_code", "place_type", "full_name", "country", "contained_within", "geo"); // Set<String> | A comma separated list of Place fields to display.
         Set<String> pollFields = new HashSet<>(Arrays.asList()); // Set<String> | A comma separated list of Poll fields to display.
         try {
-            result = apiInstance.tweets().tweetsRecentSearch(query, startTime, endTime, sinceId, untilId, maxResults, sortOrder, nextToken, paginationToken, expansions, tweetFields, userFields, mediaFields, placeFields, pollFields);
-            responseFull.setResponse(result);
+            Get2TweetsSearchRecentResponse  results = apiInstance.tweets().tweetsRecentSearch(query)
+                    .startTime(startTime)
+                    .endTime(endTime)
+                    .sinceId(sinceId)
+                    .untilId(untilId)
+                    .maxResults(maxResults)
+                    .sortOrder(sortOrder)
+                    .nextToken(nextToken)
+                    .paginationToken(paginationToken)
+                    .expansions(expansions)
+                    .tweetFields(tweetFields)
+                    .userFields(userFields)
+                    .mediaFields(mediaFields)
+                    .placeFields(placeFields)
+                    .pollFields(pollFields)
+                    .execute();
+            responseFull.setResponse(results);
         } catch (Exception e) {
             if (e instanceof ApiException) {
                 ApiException eAPI = (ApiException) e;
