@@ -38,6 +38,7 @@ public class CowoEndPoint {
             int minCharNumber = 5;
             int minCoocFreq = 3;
             int minTermFreq = 3;
+            int maxNGram = 4;
             boolean replaceStopwords = false;
             boolean isScientificCorpus = false;
 
@@ -75,6 +76,9 @@ public class CowoEndPoint {
                     if (nextKey.equals("minTermFreq")) {
                         minTermFreq = jsonObject.getInt(nextKey);
                     }
+                    if (nextKey.equals("maxNGram")) {
+                        maxNGram = jsonObject.getInt(nextKey);
+                    }
                     if (nextKey.equals("replaceStopwords")) {
                         replaceStopwords = jsonObject.getBoolean(nextKey);
                     }
@@ -87,7 +91,7 @@ public class CowoEndPoint {
                 }
 
                 CowoFunction cowoFunction = new CowoFunction();
-                String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, minCoocFreq, minTermFreq, typeCorrection);
+                String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, minCoocFreq, minTermFreq, typeCorrection, maxNGram);
                 ctx.result(gexf.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
             }
         });
