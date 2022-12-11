@@ -6,7 +6,6 @@
 package net.clementlevallois.nocodefunctionswebservices;
 
 import com.twitter.clientlib.TwitterCredentialsOAuth2;
-import com.twitter.clientlib.api.TwitterApi;
 import com.twitter.clientlib.model.Tweet;
 import io.javalin.Javalin;
 import jakarta.json.Json;
