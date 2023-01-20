@@ -75,7 +75,7 @@ public class GazeEndPoint {
             JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
             Map<String, Set<String>> lines = new TreeMap();
-
+            int minSharedTarget = 1;
             byte[] bodyAsBytes = ctx.bodyAsBytes();
             String body = new String(bodyAsBytes, StandardCharsets.UTF_8);
             if (body.isEmpty()) {
@@ -99,10 +99,18 @@ public class GazeEndPoint {
                             lines.put(nextLineKey, set);
                         }
                     }
+                    if (nextKey.equals("parameters")) {
+                        JsonObject parameters = jsonObject.getJsonObject(nextKey);
+                        for (String nextKeyParam : parameters.keySet()) {
+                            if (nextKeyParam.equals("minSharedTarget")) {
+                                minSharedTarget = parameters.getInt(nextKeyParam);
+                            }
+                        }
+                    }
                 }
 
                 SimilarityFunction simFunction = new SimilarityFunction();
-                String gexf = simFunction.createSimilarityGraph(lines);
+                String gexf = simFunction.createSimilarityGraph(lines, minSharedTarget);
                 ctx.result(gexf.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
             }
         });
