@@ -24,7 +24,6 @@ import net.clementlevallois.umigon.classifier.controller.UmigonController;
 import net.clementlevallois.umigon.classifier.sentiment.ClassifierSentimentOneDocument;
 import net.clementlevallois.umigon.explain.controller.UmigonExplain;
 import net.clementlevallois.umigon.explain.parameters.HtmlSettings;
-import net.clementlevallois.umigon.model.Category;
 import net.clementlevallois.umigon.model.Document;
 
 /**
@@ -85,39 +84,6 @@ public class SentimentEndPoints {
                     results.put(key, UmigonExplain.getSentimentPlainText(doc, "en"));
                 }
                 ctx.json(results).status(HttpURLConnection.HTTP_OK);
-            }
-        });
-
-        app.get("/api/sentimentForAText/text/{lang}", ctx -> {
-            String alert = " | warning: this endpoint is deprecated and will be removed in Sept 2022. Please refer to https://nocodefunctions.com for new, enriched endpoints";
-            String owner = ctx.queryParam("owner");
-            if (owner == null || !owner.equals(APIController.pwdOwner)) {
-                NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
-                increment();
-            }
-            String text = ctx.queryParam("text");
-            if (text == null || text.isBlank()) {
-                ctx.result("param \"text\" is missing").status(HttpURLConnection.HTTP_BAD_REQUEST);
-            } else {
-                String lang = ctx.pathParam("lang");
-                Document doc = new Document();
-                doc.setText(text);
-                switch (lang) {
-                    case "en" -> doc = classifierOneDocEN.call(doc);
-
-                    case "fr" -> doc = classifierOneDocFR.call(doc);
-
-                    case "es" -> doc = classifierOneDocES.call(doc);
-
-                    default -> ctx.result("wrong param for lang - lang not supported").status(HttpURLConnection.HTTP_BAD_REQUEST);
-                }
-                if (!doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._11).isEmpty()) {
-                    ctx.result("positive tone" + alert).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
-                } else if (!doc.getAllHeuristicsResultsForOneCategory(Category.CategoryEnum._12).isEmpty()) {
-                    ctx.result("negative tone" + alert).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
-                } else {
-                    ctx.result("neutral tone" + alert).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
-                }
             }
         });
 

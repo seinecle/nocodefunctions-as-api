@@ -78,7 +78,7 @@ public class TopicsEndPoint {
                 }
 
                 TopicDetectionFunction topicsFunction = new TopicDetectionFunction();
-                Map<Integer, Multiset<String>> topics = topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision);
+                Map<Integer, Multiset<String>> topics = topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4);
                 Set<Map.Entry<Integer, Multiset<String>>> entrySet = topics.entrySet();
 
                 JsonObjectBuilder globalObject = Json.createObjectBuilder();
