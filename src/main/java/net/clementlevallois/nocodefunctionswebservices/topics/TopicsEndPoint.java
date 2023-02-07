@@ -38,6 +38,7 @@ public class TopicsEndPoint {
             Set<String> userSuppliedStopwords = new HashSet();
             String lang = "en";
             int precision = 5;
+            int minCharNumber = 4;
             boolean replaceStopwords = false;
             boolean isScientificCorpus = false;
 
@@ -69,6 +70,9 @@ public class TopicsEndPoint {
                     if (nextKey.equals("precision")) {
                         precision = jsonObject.getInt(nextKey);
                     }
+                    if (nextKey.equals("minCharNumber")) {
+                        minCharNumber = jsonObject.getInt(nextKey);
+                    }
                     if (nextKey.equals("replaceStopwords")) {
                         replaceStopwords = jsonObject.getBoolean(nextKey);
                     }
@@ -78,7 +82,7 @@ public class TopicsEndPoint {
                 }
 
                 TopicDetectionFunction topicsFunction = new TopicDetectionFunction();
-                Map<Integer, Multiset<String>> topics = topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4);
+                Map<Integer, Multiset<String>> topics = topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber);
                 Set<Map.Entry<Integer, Multiset<String>>> entrySet = topics.entrySet();
 
                 JsonObjectBuilder globalObject = Json.createObjectBuilder();

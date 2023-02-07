@@ -35,7 +35,7 @@ public class CowoEndPoint {
             Set<String> userSuppliedStopwords = new HashSet();
             String lang = "en";
             String typeCorrection = "none";
-            int minCharNumber = 5;
+            int minCharNumber = 4;
             int minCoocFreq = 3;
             int minTermFreq = 3;
             int maxNGram = 4;
