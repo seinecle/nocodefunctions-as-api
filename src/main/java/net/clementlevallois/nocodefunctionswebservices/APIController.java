@@ -30,6 +30,7 @@ import net.clementlevallois.nocodefunctionswebservices.cowo.CowoEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.sentiment.SentimentEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.gaze.GazeEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.graphops.GraphOpsEndPoint;
+import net.clementlevallois.nocodefunctionswebservices.lemmatizerlight.LemmatizerLightEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.linkprediction.LinkPredictionEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.organic.OrganicEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.pdfmatcher.PdfMatcherEndPoints;
@@ -72,6 +73,7 @@ public class APIController {
         app = OrganicEndPoints.addAll(app, umigonController);
         app = PdfMatcherEndPoints.addAll(app);
         app = CowoEndPoint.addAll(app);
+        app = LemmatizerLightEndPoint.addAll(app);
         app = TopicsEndPoint.addAll(app);
         app = GraphOpsEndPoint.addAll(app);
         app = LinkPredictionEndPoint.addAll(app);
