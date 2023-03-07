@@ -111,7 +111,11 @@ public class GazeEndPoint {
 
                 SimilarityFunction simFunction = new SimilarityFunction();
                 String gexf = simFunction.createSimilarityGraph(lines, minSharedTarget);
-                ctx.result(gexf.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                if (gexf == null || gexf.isBlank()) {
+                    ctx.result("error gexf is null or empty".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                } else {
+                    ctx.result(gexf.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                }
             }
         });
 

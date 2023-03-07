@@ -37,7 +37,11 @@ public class GraphOpsEndPoint {
             } else {
                 GetTopNodesFromThickestEdges getTopNodes = new GetTopNodesFromThickestEdges(gexfAsString);
                 String jsonResult = getTopNodes.returnTopNodesAndEdges(Integer.parseInt(nbNodes));
-                ctx.result(jsonResult.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                if (jsonResult == null || jsonResult.isBlank()) {
+                    ctx.result("error in graph ops API, return json is null or empty".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                } else {
+                    ctx.result(jsonResult.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                }
             }
         });
         return app;

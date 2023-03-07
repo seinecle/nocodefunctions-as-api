@@ -5,7 +5,6 @@
  */
 package net.clementlevallois.nocodefunctionswebservices.lemmatizerlight;
 
-import net.clementlevallois.nocodefunctionswebservices.cowo.*;
 import io.javalin.Javalin;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
@@ -15,13 +14,9 @@ import jakarta.json.JsonReader;
 import java.io.StringReader;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import net.clementlevallois.cowo.controller.CowoFunction;
 import net.clementlevallois.lemmatizerlightweight.Lemmatizer;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 
@@ -68,7 +63,11 @@ public class LemmatizerLightEndPoint {
                     job.add(String.valueOf(entry.getKey()), sentenceLemmatized);
                 }
                 String result = APIController.turnJsonObjectToString(job.build());
-                ctx.result(result.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                if (result == null || result.isBlank()) {
+                    ctx.result("error in lemmatizer light weight on the API side".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                } else {
+                    ctx.result(result.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                }
             }
         });
 

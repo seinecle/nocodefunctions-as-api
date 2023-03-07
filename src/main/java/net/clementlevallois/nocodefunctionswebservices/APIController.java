@@ -10,6 +10,8 @@ import com.twitter.clientlib.model.Tweet;
 import io.javalin.Javalin;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
+import jakarta.json.bind.JsonbBuilder;
+import jakarta.json.bind.JsonbConfig;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -25,7 +27,6 @@ import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.clementlevallois.functions.model.Occurrence;
-import net.clementlevallois.nocodefunctionswebservices.bibd.BIBDEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.cowo.CowoEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.sentiment.SentimentEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.gaze.GazeEndPoint;
@@ -78,7 +79,6 @@ public class APIController {
         app = GraphOpsEndPoint.addAll(app);
         app = LinkPredictionEndPoint.addAll(app);
         app = GazeEndPoint.addAll(app);
-        app = BIBDEndPoint.addAll(app);
         app = VosViewerConversionEndPoint.addAll(app);
         app = TweetRetrieverEndPoints.addAll(app, twitterApiOAuth2Credentials);
         System.out.println("running the api");
@@ -143,7 +143,7 @@ public class APIController {
 
     public static String turnJsonObjectToString(JsonObject jsonObject) {
         String output = "{}";
-        try ( java.io.StringWriter stringWriter = new StringWriter()) {
+        try (java.io.StringWriter stringWriter = new StringWriter()) {
             var jsonWriter = Json.createWriter(stringWriter);
             jsonWriter.writeObject(jsonObject);
             output = stringWriter.toString();
@@ -151,6 +151,19 @@ public class APIController {
             Logger.getLogger(APIController.class.getName()).log(Level.SEVERE, null, ex);
         }
         return output;
+    }
+
+    public static String turnObjectToJsonString(Object o) {
+
+        var jsonb = JsonbBuilder.create(new JsonbConfig().withFormatting(true));
+        try ( var writer = new StringWriter()) {
+            jsonb.toJson(o, writer);
+            return writer.toString();
+        } catch (IOException ex) {
+            System.out.println("exception when serializing object");
+            System.out.println("object is: " + o.getClass());
+            return "";
+        }
     }
 
 }

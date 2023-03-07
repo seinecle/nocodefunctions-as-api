@@ -80,7 +80,11 @@ public class VosViewerConversionEndPoint {
                 InputStream isOfTheJson = new ByteArrayInputStream(bodyAsBytes);
                 VOSViewerJsonToGexf converter = new VOSViewerJsonToGexf(isOfTheJson);
                 String gexfAsString = converter.convertToGexf();
-                ctx.result(gexfAsString.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                if (gexfAsString == null) {
+                    ctx.result("error in the conversion to gexf".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                } else {
+                    ctx.result(gexfAsString.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                }
             }
         }
         );

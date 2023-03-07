@@ -92,7 +92,11 @@ public class CowoEndPoint {
 
                 CowoFunction cowoFunction = new CowoFunction();
                 String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, minCoocFreq, minTermFreq, typeCorrection, maxNGram);
-                ctx.result(gexf.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                if (gexf == null || gexf.isBlank()) {
+                    ctx.result("error gexf is null or empty").status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                } else {
+                    ctx.result(gexf.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                }
             }
         });
 

@@ -82,23 +82,47 @@ public class TopicsEndPoint {
                 }
 
                 TopicDetectionFunction topicsFunction = new TopicDetectionFunction();
-                Map<Integer, Multiset<String>> topics = topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber);
-                Set<Map.Entry<Integer, Multiset<String>>> entrySet = topics.entrySet();
+                topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber);
+                Map<Integer, Multiset<String>> topics = topicsFunction.getTopicsNumberToKeyTerms();
+                Map<Integer, Multiset<Integer>> linesAndKeyTopics = topicsFunction.getLinesAndTheirKeyTopics();
+                String gexfOfSemanticNetwork = topicsFunction.getGexfOfSemanticNetwork();
 
-                JsonObjectBuilder globalObject = Json.createObjectBuilder();
-                for (Map.Entry<Integer, Multiset<String>> entry : entrySet) {
+                Set<Map.Entry<Integer, Multiset<String>>> entrySetTopicsToKeyTerms = topics.entrySet();
+                Set<Map.Entry<Integer, Multiset<Integer>>> entrySetLinesToKeyTopics = linesAndKeyTopics.entrySet();
+
+                JsonObjectBuilder globalResults = Json.createObjectBuilder();
+                JsonObjectBuilder topicsPerLine = Json.createObjectBuilder();
+                JsonObjectBuilder keywordsPerTopic = Json.createObjectBuilder();
+
+                for (Map.Entry<Integer, Multiset<String>> entry : entrySetTopicsToKeyTerms) {
                     String communityName = String.valueOf((entry.getKey()));
                     Multiset<String> values = entry.getValue();
                     JsonObjectBuilder termsAndTheirCountsInOneCOmmunity = Json.createObjectBuilder();
                     for (String element : values.getElementSet()) {
                         termsAndTheirCountsInOneCOmmunity.add(element, values.getCount(element));
                     }
-                    globalObject.add(communityName, termsAndTheirCountsInOneCOmmunity);
+                    keywordsPerTopic.add(communityName, termsAndTheirCountsInOneCOmmunity);
                 }
-                
-                String jsonObjectToString = APIController.turnJsonObjectToString(globalObject.build());
+                for (Map.Entry<Integer, Multiset<Integer>> entry : entrySetLinesToKeyTopics) {
+                    String lineNumber = String.valueOf((entry.getKey()));
+                    Multiset<Integer> values = entry.getValue();
+                    JsonObjectBuilder topicsAndTheirCountsForOneLine = Json.createObjectBuilder();
+                    for (Integer element : values.getElementSet()) {
+                        topicsAndTheirCountsForOneLine.add(String.valueOf(element), values.getCount(element));
+                    }
+                    topicsPerLine.add(lineNumber, topicsAndTheirCountsForOneLine);
+                }
 
-                ctx.result(jsonObjectToString.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                globalResults.add("keywordsPerTopic", keywordsPerTopic);
+                globalResults.add("topicsPerLine", topicsPerLine);
+                globalResults.add("gexf", gexfOfSemanticNetwork);
+
+                if (keywordsPerTopic == null || topicsPerLine == null || gexfOfSemanticNetwork == null) {
+                    ctx.result("error in the topic detection API side".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                } else {
+                    String jsonObjectToString = APIController.turnJsonObjectToString(globalResults.build());
+                    ctx.result(jsonObjectToString.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                }
             }
         });
 

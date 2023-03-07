@@ -62,7 +62,6 @@ public class LinkPredictionEndPoint {
                 objectBuilder.add("gexf augmented", gexfAugmented);
 
                 JsonObject jsonObjectResult = objectBuilder.build();
-
                 ctx.result(jsonObjectResult.toString().getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
             }
         });

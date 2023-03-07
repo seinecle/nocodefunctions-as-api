@@ -13,6 +13,7 @@ import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonReader;
 import java.io.StringReader;
 import java.net.HttpURLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TreeMap;
@@ -63,7 +64,7 @@ public class PdfMatcherEndPoints {
                     }
                     if (nextKey.equals("nbContext")) {
                         nbContext = jsonObject.getInt(nextKey);
-                    }                    
+                    }
                     if (nextKey.equals("searchedTerm")) {
                         searchedTerm = jsonObject.getString(nextKey);
                     }
@@ -71,7 +72,11 @@ public class PdfMatcherEndPoints {
 
                 PdfMatcher pdfMatcher = new PdfMatcher();
                 List<Occurrence> occurrences = pdfMatcher.analyze(pages, searchedTerm, lines, nbContext);
-                ctx.result(APIController.byteArraySerializerForListOfOccurrences(occurrences)).status(HttpURLConnection.HTTP_OK);
+                if (occurrences == null) {
+                    ctx.result("error on the pdf occurrences API - occurrences were null".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                } else {
+                    ctx.result(APIController.byteArraySerializerForListOfOccurrences(occurrences)).status(HttpURLConnection.HTTP_OK);
+                }
             }
         });
 

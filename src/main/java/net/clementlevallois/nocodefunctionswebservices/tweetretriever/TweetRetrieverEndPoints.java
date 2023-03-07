@@ -13,6 +13,7 @@ import com.twitter.clientlib.TwitterCredentialsOAuth2;
 import com.twitter.clientlib.api.TwitterApi;
 import com.twitter.clientlib.auth.TwitterOAuth20Service;
 import com.twitter.clientlib.model.Get2TweetsSearchRecentResponse;
+import com.twitter.clientlib.model.Tweet;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.Handler;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Scanner;
 import java.util.Set;
+import net.clementlevallois.nocodefunctionswebservices.APIController;
 import static net.clementlevallois.nocodefunctionswebservices.APIController.increment;
 
 /**
@@ -146,7 +148,9 @@ public class TweetRetrieverEndPoints {
                     if (recentTweets.getData() == null) {
                         recentTweets.setData(new ArrayList());
                     }
-                    ctx.result(recentTweets.toJson()).status(HttpURLConnection.HTTP_OK);
+                    List<Tweet> tweets = recentTweets.getData();
+                    String tweetsToJsonString = APIController.turnObjectToJsonString(tweets);
+                    ctx.result(tweetsToJsonString).status(HttpURLConnection.HTTP_OK);
                 }
             }
         });
