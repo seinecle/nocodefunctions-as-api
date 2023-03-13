@@ -11,14 +11,20 @@ import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonReader;
+import java.io.ByteArrayInputStream;
+import java.io.ObjectInputStream;
 import java.io.StringReader;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import net.clementlevallois.lemmatizerlightweight.Lemmatizer;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
+import net.clementlevallois.umigon.model.NGram;
+import net.clementlevallois.utils.Multiset;
 
 /**
  *
@@ -68,6 +74,80 @@ public class LemmatizerLightEndPoint {
                 } else {
                     ctx.result(result.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
                 }
+            }
+        });
+
+        app.post("/api/lemmatizer_light/multiset", ctx -> {
+            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
+            NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
+            TreeMap<String, Integer> entries = new TreeMap();
+            String lang = "en";
+
+            byte[] bodyAsBytes = ctx.bodyAsBytes();
+            String body = new String(bodyAsBytes, StandardCharsets.UTF_8);
+            if (body.isEmpty()) {
+                objectBuilder.add("-99", "body of the request should not be empty");
+                JsonObject jsonObject = objectBuilder.build();
+                ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
+            } else {
+                JsonReader jsonReader = Json.createReader(new StringReader(body));
+                JsonObject jsonObject = jsonReader.readObject();
+                for (String nextKey : jsonObject.keySet()) {
+                    if (nextKey.equals("lines")) {
+                        JsonObject linesJson = jsonObject.getJsonObject(nextKey);
+                        for (String nextLineKey : linesJson.keySet()) {
+                            entries.put(nextLineKey, linesJson.getInt(nextLineKey));
+                        }
+                    }
+                    if (nextKey.equals("lang")) {
+                        lang = jsonObject.getString(nextKey);
+                    }
+                }
+
+                Lemmatizer lemmatizer = new Lemmatizer(lang);
+
+                Map<String, Integer> resultLemmatization = new HashMap();
+
+                for (Map.Entry<String, Integer> entry : entries.entrySet()) {
+                    String termLemmatized = lemmatizer.lemmatize(entry.getKey());
+                    Integer occurrences = resultLemmatization.getOrDefault(termLemmatized, 0);
+                    resultLemmatization.put(termLemmatized, occurrences + 1);
+                }
+
+                byte[] byteArraySerializerForAnyObject = APIController.byteArraySerializerForAnyObject(resultLemmatization);
+                ctx.result(byteArraySerializerForAnyObject).status(HttpURLConnection.HTTP_OK);
+            }
+        });
+
+        app.post("/api/lemmatizer_light/map/{lang}", ctx -> {
+            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
+            NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
+            String lang = ctx.pathParam("lang");
+
+            byte[] bodyAsBytes = ctx.bodyAsBytes();
+
+            if (bodyAsBytes.length == 0) {
+                objectBuilder.add("-99", "body of the request should not be empty");
+                JsonObject jsonObject = objectBuilder.build();
+                ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
+            } else {
+                ByteArrayInputStream bis = new ByteArrayInputStream(bodyAsBytes);
+                ObjectInputStream ois = new ObjectInputStream(bis);
+                TreeMap<Integer, String> mapInput = (TreeMap<Integer, String>) ois.readObject();
+
+                Lemmatizer lemmatizer = new Lemmatizer(lang);
+
+                Map<Integer, String> mapResult = new HashMap();
+
+                Set<Map.Entry<Integer, String>> entrySet = mapInput.entrySet();
+
+                for (Map.Entry<Integer, String> entry : entrySet) {
+                    String lemmatized = lemmatizer.lemmatize(entry.getValue());
+                    mapResult.put(entry.getKey(), lemmatized);
+                }
+
+                byte[] byteArraySerializerForAnyObject = APIController.byteArraySerializerForAnyObject(mapResult);
+                ctx.result(byteArraySerializerForAnyObject).status(HttpURLConnection.HTTP_OK);
             }
         });
 
