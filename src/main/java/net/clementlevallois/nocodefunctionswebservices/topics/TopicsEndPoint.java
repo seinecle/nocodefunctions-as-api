@@ -39,6 +39,7 @@ public class TopicsEndPoint {
             String lang = "en";
             int precision = 5;
             int minCharNumber = 4;
+            int minTermFreq = 2;
             boolean replaceStopwords = false;
             boolean isScientificCorpus = false;
 
@@ -70,6 +71,9 @@ public class TopicsEndPoint {
                     if (nextKey.equals("precision")) {
                         precision = jsonObject.getInt(nextKey);
                     }
+                    if (nextKey.equals("minTermFreq")) {
+                        minTermFreq = jsonObject.getInt(nextKey);
+                    }
                     if (nextKey.equals("minCharNumber")) {
                         minCharNumber = jsonObject.getInt(nextKey);
                     }
@@ -82,7 +86,7 @@ public class TopicsEndPoint {
                 }
 
                 TopicDetectionFunction topicsFunction = new TopicDetectionFunction();
-                topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber);
+                topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber, minTermFreq);
                 Map<Integer, Multiset<String>> topics = topicsFunction.getTopicsNumberToKeyTerms();
                 Map<Integer, Multiset<Integer>> linesAndKeyTopics = topicsFunction.getLinesAndTheirKeyTopics();
                 String gexfOfSemanticNetwork = topicsFunction.getGexfOfSemanticNetwork();
