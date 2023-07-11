@@ -5,8 +5,6 @@
  */
 package net.clementlevallois.nocodefunctionswebservices;
 
-import com.twitter.clientlib.TwitterCredentialsOAuth2;
-import com.twitter.clientlib.model.Tweet;
 import io.javalin.Javalin;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
@@ -35,8 +33,8 @@ import net.clementlevallois.nocodefunctionswebservices.lemmatizerlight.Lemmatize
 import net.clementlevallois.nocodefunctionswebservices.linkprediction.LinkPredictionEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.organic.OrganicEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.pdfmatcher.PdfMatcherEndPoints;
+import net.clementlevallois.nocodefunctionswebservices.spatialize.SpatializeEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.topics.TopicsEndPoint;
-import net.clementlevallois.nocodefunctionswebservices.tweetretriever.TweetRetrieverEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.vvconversion.VosViewerConversionEndPoint;
 import net.clementlevallois.umigon.classifier.controller.UmigonController;
 import net.clementlevallois.umigon.model.Document;
@@ -65,9 +63,6 @@ public class APIController {
 
         pwdOwner = props.getProperty("pwdOwner");
 
-        String twitterClientId = props.getProperty("twitter_client_id");
-        String twitterClientSecret = props.getProperty("twitter_client_secret");
-        TwitterCredentialsOAuth2 twitterApiOAuth2Credentials = new TwitterCredentialsOAuth2(twitterClientId, twitterClientSecret, "", "");
 
         UmigonController umigonController = new UmigonController();
         app = SentimentEndPoints.addAll(app, umigonController);
@@ -80,7 +75,7 @@ public class APIController {
         app = LinkPredictionEndPoint.addAll(app);
         app = GazeEndPoint.addAll(app);
         app = VosViewerConversionEndPoint.addAll(app);
-        app = TweetRetrieverEndPoints.addAll(app, twitterApiOAuth2Credentials);
+        app = SpatializeEndPoint.addAll(app);
         System.out.println("running the api");
 
     }
@@ -97,15 +92,6 @@ public class APIController {
     }
 
     public static byte[] byteArraySerializerForDocuments(Document o) throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeObject(o);
-        oos.flush();
-        byte[] data = bos.toByteArray();
-        return data;
-    }
-
-    public static byte[] byteArraySerializerForTweets(List<Tweet> o) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(bos);
         oos.writeObject(o);

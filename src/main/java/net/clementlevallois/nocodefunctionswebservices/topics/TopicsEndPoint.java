@@ -42,6 +42,8 @@ public class TopicsEndPoint {
             int minTermFreq = 2;
             boolean replaceStopwords = false;
             boolean isScientificCorpus = false;
+            boolean lemmatize = false;
+            boolean removeAccents = false;
 
             byte[] bodyAsBytes = ctx.bodyAsBytes();
             String body = new String(bodyAsBytes, StandardCharsets.US_ASCII);
@@ -80,13 +82,20 @@ public class TopicsEndPoint {
                     if (nextKey.equals("replaceStopwords")) {
                         replaceStopwords = jsonObject.getBoolean(nextKey);
                     }
+                    if (nextKey.equals("removeAccents")) {
+                        removeAccents = jsonObject.getBoolean(nextKey);
+                    }
+                    if (nextKey.equals("lemmatize")) {
+                        lemmatize = jsonObject.getBoolean(nextKey);
+                    }
                     if (nextKey.equals("isScientificCorpus")) {
                         isScientificCorpus = jsonObject.getBoolean(nextKey);
                     }
                 }
 
                 TopicDetectionFunction topicsFunction = new TopicDetectionFunction();
-                topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber, minTermFreq);
+                topicsFunction.setRemoveAccents(removeAccents);
+                topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber, minTermFreq, lemmatize);
                 Map<Integer, Multiset<String>> topics = topicsFunction.getTopicsNumberToKeyTerms();
                 Map<Integer, Multiset<Integer>> linesAndKeyTopics = topicsFunction.getLinesAndTheirKeyTopics();
                 String gexfOfSemanticNetwork = topicsFunction.getGexfOfSemanticNetwork();

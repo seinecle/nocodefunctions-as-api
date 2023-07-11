@@ -40,7 +40,9 @@ public class CowoEndPoint {
             int minTermFreq = 3;
             int maxNGram = 4;
             boolean replaceStopwords = false;
+            boolean removeAccents = false;
             boolean isScientificCorpus = false;
+            boolean lemmatize = true;
 
             byte[] bodyAsBytes = ctx.bodyAsBytes();
             String body = new String(bodyAsBytes, StandardCharsets.UTF_8);
@@ -70,6 +72,12 @@ public class CowoEndPoint {
                     if (nextKey.equals("minCharNumber")) {
                         minCharNumber = jsonObject.getInt(nextKey);
                     }
+                    if (nextKey.equals("removeAccents")) {
+                        removeAccents = jsonObject.getBoolean(nextKey);
+                    }
+                    if (nextKey.equals("lemmatize")) {
+                        lemmatize = jsonObject.getBoolean(nextKey);
+                    }
                     if (nextKey.equals("minCoocFreq")) {
                         minCoocFreq = jsonObject.getInt(nextKey);
                     }
@@ -91,7 +99,8 @@ public class CowoEndPoint {
                 }
 
                 CowoFunction cowoFunction = new CowoFunction();
-                String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, minCoocFreq, minTermFreq, typeCorrection, maxNGram);
+                cowoFunction.setFlattenToAScii(removeAccents);
+                String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, minCoocFreq, minTermFreq, typeCorrection, maxNGram, lemmatize);
                 if (gexf == null || gexf.isBlank()) {
                     ctx.result("error gexf is null or empty").status(HttpURLConnection.HTTP_INTERNAL_ERROR);
                 } else {

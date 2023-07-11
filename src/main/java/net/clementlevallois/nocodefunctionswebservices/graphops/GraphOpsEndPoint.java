@@ -29,6 +29,12 @@ public class GraphOpsEndPoint {
 
             byte[] bodyAsBytes = ctx.bodyAsBytes();
             String nbNodes = ctx.queryParam("nbNodes");
+            Integer nbNodesAsInteger;
+            try {
+                nbNodesAsInteger = Integer.valueOf(nbNodes);
+            } catch (NumberFormatException e) {
+                nbNodesAsInteger = 30;
+            }
             String gexfAsString = new String(bodyAsBytes, StandardCharsets.UTF_8);
             if (gexfAsString.isEmpty()) {
                 objectBuilder.add("-99", "body of the request should not be empty");
@@ -36,7 +42,7 @@ public class GraphOpsEndPoint {
                 ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
             } else {
                 GetTopNodesFromThickestEdges getTopNodes = new GetTopNodesFromThickestEdges(gexfAsString);
-                String jsonResult = getTopNodes.returnTopNodesAndEdges(Integer.parseInt(nbNodes));
+                String jsonResult = getTopNodes.returnTopNodesAndEdges(nbNodesAsInteger);
                 if (jsonResult == null || jsonResult.isBlank()) {
                     ctx.result("error in graph ops API, return json is null or empty".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
                 } else {
