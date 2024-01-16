@@ -61,6 +61,7 @@ public class VosViewerConversionEndPoint {
                 converter.getMetadataData().setAuthorCanBePlural("");
                 converter.getMetadataData().setDescriptionOfData(descriptionData);
                 String graphAsJsonVosViewer = converter.convertToJson();
+                graphAsJsonVosViewer = Json.encodePointer(graphAsJsonVosViewer);
 
                 ctx.result(graphAsJsonVosViewer.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
             }

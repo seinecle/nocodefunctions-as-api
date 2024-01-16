@@ -24,8 +24,8 @@ import net.clementlevallois.umigon.classifier.controller.UmigonController;
 import net.clementlevallois.umigon.classifier.delight.ClassifierDelightOneDocument;
 import net.clementlevallois.umigon.model.Category;
 import net.clementlevallois.umigon.model.Category.CategoryEnum;
-import net.clementlevallois.umigon.model.Document;
-import net.clementlevallois.umigon.model.ResultOneHeuristics;
+import net.clementlevallois.umigon.model.classification.Document;
+import net.clementlevallois.umigon.model.classification.ResultOneHeuristics;
 
 /**
  *

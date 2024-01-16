@@ -14,11 +14,11 @@ import jakarta.json.JsonReader;
 import java.io.StringReader;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.TreeMap;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
-import net.clementlevallois.cowo.controller.CowoFunction;
+import net.clementlevallois.nocodefunctionswebservices.APIController;
 
 /**
  *
@@ -31,18 +31,8 @@ public class CowoEndPoint {
         app.post("/api/cowo", ctx -> {
             JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
-            TreeMap<Integer, String> lines = new TreeMap();
-            Set<String> userSuppliedStopwords = new HashSet();
-            String lang = "en";
-            String typeCorrection = "none";
-            int minCharNumber = 4;
-            int minCoocFreq = 3;
-            int minTermFreq = 3;
-            int maxNGram = 4;
-            boolean replaceStopwords = false;
-            boolean removeAccents = false;
-            boolean isScientificCorpus = false;
-            boolean lemmatize = true;
+
+            RunnableCowo runnableCowo = new RunnableCowo();
 
             byte[] bodyAsBytes = ctx.bodyAsBytes();
             String body = new String(bodyAsBytes, StandardCharsets.UTF_8);
@@ -54,58 +44,67 @@ public class CowoEndPoint {
                 JsonReader jsonReader = Json.createReader(new StringReader(body));
                 JsonObject jsonObject = jsonReader.readObject();
                 for (String nextKey : jsonObject.keySet()) {
-                    if (nextKey.equals("lines")) {
-                        JsonObject linesJson = jsonObject.getJsonObject(nextKey);
-                        for (String nextLineKey : linesJson.keySet()) {
-                            lines.put(Integer.valueOf(nextLineKey), linesJson.getString(nextLineKey));
+                    if (nextKey.equals("dataPersistenceId")) {
+                        runnableCowo.setDataPersistenceId(jsonObject.getString(nextKey));
+                        Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), runnableCowo.getDataPersistenceId());
+                        if (Files.exists(tempDataPath)) {
+                            List<String> readAllLines = Files.readAllLines(tempDataPath, StandardCharsets.UTF_8);
+                            int i = 0;
+                            for (String line : readAllLines) {
+                                runnableCowo.getLines().put(i++, line);
+                            }
+                            Files.delete(tempDataPath);
                         }
                     }
                     if (nextKey.equals("lang")) {
-                        lang = jsonObject.getString(nextKey);
+                        runnableCowo.setLang(jsonObject.getString(nextKey));
                     }
                     if (nextKey.equals("userSuppliedStopwords")) {
                         JsonObject linesJson = jsonObject.getJsonObject(nextKey);
                         for (String nextLineKey : linesJson.keySet()) {
-                            userSuppliedStopwords.add(linesJson.getString(nextLineKey));
+                            runnableCowo.getUserSuppliedStopwords().add(linesJson.getString(nextLineKey));
                         }
                     }
                     if (nextKey.equals("minCharNumber")) {
-                        minCharNumber = jsonObject.getInt(nextKey);
+                        runnableCowo.setMinCharNumber(jsonObject.getInt(nextKey));
                     }
                     if (nextKey.equals("removeAccents")) {
-                        removeAccents = jsonObject.getBoolean(nextKey);
+                        runnableCowo.setRemoveAccents(jsonObject.getBoolean(nextKey));
                     }
                     if (nextKey.equals("lemmatize")) {
-                        lemmatize = jsonObject.getBoolean(nextKey);
+                        runnableCowo.setLemmatize(jsonObject.getBoolean(nextKey));
                     }
                     if (nextKey.equals("minCoocFreq")) {
-                        minCoocFreq = jsonObject.getInt(nextKey);
+                        runnableCowo.setMinCoocFreq(jsonObject.getInt(nextKey));
                     }
                     if (nextKey.equals("minTermFreq")) {
-                        minTermFreq = jsonObject.getInt(nextKey);
+                        runnableCowo.setMinTermFreq(jsonObject.getInt(nextKey));
                     }
                     if (nextKey.equals("maxNGram")) {
-                        maxNGram = jsonObject.getInt(nextKey);
+                        runnableCowo.setMaxNGram(jsonObject.getInt(nextKey));
                     }
                     if (nextKey.equals("replaceStopwords")) {
-                        replaceStopwords = jsonObject.getBoolean(nextKey);
+                        runnableCowo.setReplaceStopwords(jsonObject.getBoolean(nextKey));
                     }
                     if (nextKey.equals("isScientificCorpus")) {
-                        isScientificCorpus = jsonObject.getBoolean(nextKey);
+                        runnableCowo.setIsScientificCorpus(jsonObject.getBoolean(nextKey));
                     }
                     if (nextKey.equals("typeCorrection")) {
-                        typeCorrection = jsonObject.getString(nextKey);
+                        runnableCowo.setTypeCorrection(jsonObject.getString(nextKey));
+                    }
+                    if (nextKey.equals("sessionId")) {
+                        runnableCowo.setSessionId(jsonObject.getString(nextKey));
+                    }
+                    if (nextKey.equals("callbackURL")) {
+                        runnableCowo.setCallbackURL(jsonObject.getString(nextKey));
+                    }
+                    if (nextKey.equals("dataPersistenceId")) {
+                        runnableCowo.setDataPersistenceId(jsonObject.getString(nextKey));
                     }
                 }
 
-                CowoFunction cowoFunction = new CowoFunction();
-                cowoFunction.setFlattenToAScii(removeAccents);
-                String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, minCoocFreq, minTermFreq, typeCorrection, maxNGram, lemmatize);
-                if (gexf == null || gexf.isBlank()) {
-                    ctx.result("error gexf is null or empty").status(HttpURLConnection.HTTP_INTERNAL_ERROR);
-                } else {
-                    ctx.result(gexf.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
-                }
+                runnableCowo.runCowoInBackgroundThread();
+                ctx.result("ok").status(HttpURLConnection.HTTP_OK);
             }
         });
 

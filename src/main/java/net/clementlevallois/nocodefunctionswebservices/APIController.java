@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.StringWriter;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
@@ -25,6 +26,7 @@ import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.clementlevallois.functions.model.Occurrence;
+import net.clementlevallois.nocodefunctionswebservices.bibliocoupling.BibliocouplingEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.cowo.CowoEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.sentiment.SentimentEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.gaze.GazeEndPoint;
@@ -37,7 +39,7 @@ import net.clementlevallois.nocodefunctionswebservices.spatialize.SpatializeEndP
 import net.clementlevallois.nocodefunctionswebservices.topics.TopicsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.vvconversion.VosViewerConversionEndPoint;
 import net.clementlevallois.umigon.classifier.controller.UmigonController;
-import net.clementlevallois.umigon.model.Document;
+import net.clementlevallois.umigon.model.classification.Document;
 import net.clementlevallois.utils.Multiset;
 
 /**
@@ -51,18 +53,25 @@ public class APIController {
      */
     private static Javalin app;
     public static String pwdOwner;
+    public static Path tempFilesFolder;
 
     public static void main(String[] args) throws Exception {
         Properties props = new Properties();
         props.load(new FileInputStream("private/props.properties"));
         String port = props.getProperty("port");
 
+        boolean isLocal = System.getProperty("os.name").toLowerCase().contains("win");
+        if (isLocal) {
+            tempFilesFolder = Path.of(props.getProperty("pathToTempFilesWindows"));
+        } else {
+            tempFilesFolder = Path.of(props.getProperty("pathToTempFilesLinux"));
+        }
+
         app = Javalin.create(config -> {
             config.http.maxRequestSize = 1000000000;
         }).start(Integer.parseInt(port));
 
         pwdOwner = props.getProperty("pwdOwner");
-
 
         UmigonController umigonController = new UmigonController();
         app = SentimentEndPoints.addAll(app, umigonController);
@@ -76,6 +85,7 @@ public class APIController {
         app = GazeEndPoint.addAll(app);
         app = VosViewerConversionEndPoint.addAll(app);
         app = SpatializeEndPoint.addAll(app);
+        app = BibliocouplingEndPoints.addAll(app);
         System.out.println("running the api");
 
     }
@@ -142,7 +152,7 @@ public class APIController {
     public static String turnObjectToJsonString(Object o) {
 
         var jsonb = JsonbBuilder.create(new JsonbConfig().withFormatting(true));
-        try ( var writer = new StringWriter()) {
+        try (var writer = new StringWriter()) {
             jsonb.toJson(o, writer);
             return writer.toString();
         } catch (IOException ex) {
