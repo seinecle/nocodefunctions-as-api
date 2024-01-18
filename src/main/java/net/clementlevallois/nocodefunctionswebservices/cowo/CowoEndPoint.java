@@ -51,7 +51,7 @@ public class CowoEndPoint {
                             List<String> readAllLines = Files.readAllLines(tempDataPath, StandardCharsets.UTF_8);
                             int i = 0;
                             for (String line : readAllLines) {
-                                runnableCowo.getLines().put(i++, line);
+                                runnableCowo.getLines().put(i++, line.trim());
                             }
                             Files.delete(tempDataPath);
                         }
