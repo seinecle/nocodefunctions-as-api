@@ -47,7 +47,7 @@ public class CowoEndPoint {
                     if (nextKey.equals("dataPersistenceId")) {
                         runnableCowo.setDataPersistenceId(jsonObject.getString(nextKey));
                         Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), runnableCowo.getDataPersistenceId());
-                        if (Files.exists(tempDataPath)) {
+                        if (Files.exists(tempDataPath) && !Files.isDirectory(tempDataPath)) {
                             List<String> readAllLines = Files.readAllLines(tempDataPath, StandardCharsets.UTF_8);
                             int i = 0;
                             for (String line : readAllLines) {

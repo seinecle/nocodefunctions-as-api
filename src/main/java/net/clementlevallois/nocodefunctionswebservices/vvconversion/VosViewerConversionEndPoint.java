@@ -32,8 +32,7 @@ public class VosViewerConversionEndPoint {
 
     public static Javalin addAll(Javalin app) throws Exception {
 
-        app.post("/api/convert2vv", ctx -> {
-            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
+        app.get("/api/convert2vv", ctx -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
 
             String item = Optional.ofNullable(ctx.queryParam("item")).orElse("item");
@@ -49,7 +48,7 @@ public class VosViewerConversionEndPoint {
             if (Files.exists(tempDataPath)) {
                 gexfAsString = Files.readString(tempDataPath, StandardCharsets.UTF_8);
             } else {
-                ctx.result("error for vv convertion, gexf file not found in disk".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                ctx.result("error for vv conversion, gexf file not found in disk".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_BAD_REQUEST);
             }
 
             InputStream isOfTheGexf = new ByteArrayInputStream(gexfAsString.getBytes(StandardCharsets.UTF_8));

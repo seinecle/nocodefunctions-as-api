@@ -34,28 +34,6 @@ public class GraphOpsEndPoint {
             String dataPersistenceId = ctx.queryParam("dataPersistenceId");
             Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId + "_result");
             String gexfAsString = "";
-            int i = 0;
-            while (!Files.exists(tempDataPath) || !Files.isReadable(tempDataPath)) {
-                try {
-                    Thread.sleep(200); // Wait for 200 ms before retrying
-                    i++;
-
-                    if (i > 500) {
-                        objectBuilder.add("-97", "time out, gexf file not found on disk");
-                        objectBuilder.add("gexf file: ", tempDataPath.toString());
-                        JsonObject jsonObject = objectBuilder.build();
-                        ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
-                    }
-
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    System.out.println("Interrupted, exiting...");
-                    objectBuilder.add("-98", "gexf file not found on disk");
-                    objectBuilder.add("gexf file: ", tempDataPath.toString());
-                    JsonObject jsonObject = objectBuilder.build();
-                    ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
-                }
-            }
             try {
                 gexfAsString = Files.readString(tempDataPath, StandardCharsets.UTF_8);
             } catch (IOException e) {

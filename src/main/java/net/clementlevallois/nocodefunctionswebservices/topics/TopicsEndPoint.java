@@ -14,14 +14,11 @@ import jakarta.json.JsonReader;
 import java.io.StringReader;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
-import net.clementlevallois.topics.topic.detection.function.controller.TopicDetectionFunction;
-import net.clementlevallois.utils.Multiset;
 
 /**
  *
@@ -34,108 +31,75 @@ public class TopicsEndPoint {
         app.post("/api/topics", ctx -> {
             JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
-            TreeMap<Integer, String> lines = new TreeMap();
-            Set<String> userSuppliedStopwords = new HashSet();
-            String lang = "en";
-            int precision = 5;
-            int minCharNumber = 4;
-            int minTermFreq = 2;
-            boolean replaceStopwords = false;
-            boolean isScientificCorpus = false;
-            boolean lemmatize = false;
-            boolean removeAccents = false;
+
+            RunnableTopics runnableTopics = new RunnableTopics();
 
             byte[] bodyAsBytes = ctx.bodyAsBytes();
             String body = new String(bodyAsBytes, StandardCharsets.US_ASCII);
             if (body.isEmpty()) {
-                objectBuilder.add("-99", "body of the request should not be empty");
+                objectBuilder.add("-99", "topics endpoint: body of the request should not be empty");
                 JsonObject jsonObject = objectBuilder.build();
                 ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
             } else {
                 JsonReader jsonReader = Json.createReader(new StringReader(body));
                 JsonObject jsonObject = jsonReader.readObject();
                 for (String nextKey : jsonObject.keySet()) {
-                    if (nextKey.equals("lines")) {
-                        JsonObject linesJson = jsonObject.getJsonObject(nextKey);
-                        for (String nextLineKey : linesJson.keySet()) {
-                            lines.put(Integer.valueOf(nextLineKey), linesJson.getString(nextLineKey));
+                    if (nextKey.equals("dataPersistenceId")) {
+                        runnableTopics.setDataPersistenceId(jsonObject.getString(nextKey));
+                        Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), runnableTopics.getDataPersistenceId());
+                        if (Files.exists(tempDataPath) && !Files.isDirectory(tempDataPath)) {
+                            List<String> readAllLines = Files.readAllLines(tempDataPath, StandardCharsets.UTF_8);
+                            int i = 0;
+                            for (String line : readAllLines) {
+                                runnableTopics.getLines().put(i++, line.trim());
+                            }
+                            Files.delete(tempDataPath);
                         }
                     }
                     if (nextKey.equals("lang")) {
-                        lang = jsonObject.getString(nextKey);
+                        runnableTopics.setLang(jsonObject.getString(nextKey));
                     }
                     if (nextKey.equals("userSuppliedStopwords")) {
                         JsonObject linesJson = jsonObject.getJsonObject(nextKey);
                         for (String nextLineKey : linesJson.keySet()) {
-                            userSuppliedStopwords.add(linesJson.getString(nextLineKey));
+                            runnableTopics.getUserSuppliedStopwords().add(linesJson.getString(nextLineKey));
                         }
                     }
                     if (nextKey.equals("precision")) {
-                        precision = jsonObject.getInt(nextKey);
+                        runnableTopics.setPrecision(jsonObject.getInt(nextKey));
                     }
                     if (nextKey.equals("minTermFreq")) {
-                        minTermFreq = jsonObject.getInt(nextKey);
+                        runnableTopics.setMinTermFreq(jsonObject.getInt(nextKey));
                     }
                     if (nextKey.equals("minCharNumber")) {
-                        minCharNumber = jsonObject.getInt(nextKey);
+                        runnableTopics.setMinCharNumber(jsonObject.getInt(nextKey));
                     }
                     if (nextKey.equals("replaceStopwords")) {
-                        replaceStopwords = jsonObject.getBoolean(nextKey);
+                        runnableTopics.setReplaceStopwords(jsonObject.getBoolean(nextKey));
                     }
                     if (nextKey.equals("removeAccents")) {
-                        removeAccents = jsonObject.getBoolean(nextKey);
+                        runnableTopics.setRemoveAccents(jsonObject.getBoolean(nextKey));
                     }
                     if (nextKey.equals("lemmatize")) {
-                        lemmatize = jsonObject.getBoolean(nextKey);
+                        runnableTopics.setLemmatize(jsonObject.getBoolean(nextKey));
                     }
                     if (nextKey.equals("isScientificCorpus")) {
-                        isScientificCorpus = jsonObject.getBoolean(nextKey);
+                        runnableTopics.setIsScientificCorpus(jsonObject.getBoolean(nextKey));
+                    }
+                    if (nextKey.equals("sessionId")) {
+                        runnableTopics.setSessionId(jsonObject.getString(nextKey));
+                    }
+                    if (nextKey.equals("callbackURL")) {
+                        runnableTopics.setCallbackURL(jsonObject.getString(nextKey));
+                    }
+                    if (nextKey.equals("dataPersistenceId")) {
+                        runnableTopics.setDataPersistenceId(jsonObject.getString(nextKey));
                     }
                 }
 
-                TopicDetectionFunction topicsFunction = new TopicDetectionFunction();
-                topicsFunction.setRemoveAccents(removeAccents);
-                topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber, minTermFreq, lemmatize);
-                Map<Integer, Multiset<String>> topics = topicsFunction.getTopicsNumberToKeyTerms();
-                Map<Integer, Multiset<Integer>> linesAndKeyTopics = topicsFunction.getLinesAndTheirKeyTopics();
-                String gexfOfSemanticNetwork = topicsFunction.getGexfOfSemanticNetwork();
+                runnableTopics.runTopicsInBackgroundThread();
 
-                Set<Map.Entry<Integer, Multiset<String>>> entrySetTopicsToKeyTerms = topics.entrySet();
-                Set<Map.Entry<Integer, Multiset<Integer>>> entrySetLinesToKeyTopics = linesAndKeyTopics.entrySet();
-
-                JsonObjectBuilder globalResults = Json.createObjectBuilder();
-                JsonObjectBuilder topicsPerLine = Json.createObjectBuilder();
-                JsonObjectBuilder keywordsPerTopic = Json.createObjectBuilder();
-
-                for (Map.Entry<Integer, Multiset<String>> entry : entrySetTopicsToKeyTerms) {
-                    String communityName = String.valueOf((entry.getKey()));
-                    Multiset<String> values = entry.getValue();
-                    JsonObjectBuilder termsAndTheirCountsInOneCOmmunity = Json.createObjectBuilder();
-                    for (String element : values.getElementSet()) {
-                        termsAndTheirCountsInOneCOmmunity.add(element, values.getCount(element));
-                    }
-                    keywordsPerTopic.add(communityName, termsAndTheirCountsInOneCOmmunity);
-                }
-                for (Map.Entry<Integer, Multiset<Integer>> entry : entrySetLinesToKeyTopics) {
-                    String lineNumber = String.valueOf((entry.getKey()));
-                    Multiset<Integer> values = entry.getValue();
-                    JsonObjectBuilder topicsAndTheirCountsForOneLine = Json.createObjectBuilder();
-                    for (Integer element : values.getElementSet()) {
-                        topicsAndTheirCountsForOneLine.add(String.valueOf(element), values.getCount(element));
-                    }
-                    topicsPerLine.add(lineNumber, topicsAndTheirCountsForOneLine);
-                }
-
-                globalResults.add("keywordsPerTopic", keywordsPerTopic);
-                globalResults.add("topicsPerLine", topicsPerLine);
-                globalResults.add("gexf", gexfOfSemanticNetwork);
-
-                if (keywordsPerTopic == null || topicsPerLine == null || gexfOfSemanticNetwork == null) {
-                    ctx.result("error in the topic detection API side".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
-                } else {
-                    String jsonObjectToString = APIController.turnJsonObjectToString(globalResults.build());
-                    ctx.result(jsonObjectToString.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
-                }
+                ctx.result("ok").status(HttpURLConnection.HTTP_OK);
             }
         });
 
