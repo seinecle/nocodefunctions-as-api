@@ -18,7 +18,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import net.clementlevallois.cowo.controller.CowoFunction;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import net.clementlevallois.topics.topic.detection.function.controller.TopicDetectionFunction;
 import net.clementlevallois.utils.Multiset;
@@ -52,6 +51,7 @@ public class RunnableTopics {
             try {
                 TopicDetectionFunction topicsFunction = new TopicDetectionFunction();
                 topicsFunction.setRemoveAccents(removeAccents);
+                topicsFunction.setSessionIdAndCallbackURL(sessionId, callbackURL, dataPersistenceId);
                 topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber, minTermFreq, lemmatize);
                 Map<Integer, Multiset<String>> topics = topicsFunction.getTopicsNumberToKeyTerms();
                 Map<Integer, Multiset<Integer>> linesAndKeyTopics = topicsFunction.getLinesAndTheirKeyTopics();

@@ -23,8 +23,6 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import net.clementlevallois.lemmatizerlightweight.Lemmatizer;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
-import net.clementlevallois.umigon.model.NGram;
-import net.clementlevallois.utils.Multiset;
 
 /**
  *

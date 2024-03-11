@@ -26,10 +26,15 @@ import net.clementlevallois.umigon.model.classification.Document;
  */
 public class OrganicEndPoints {
 
-    public static Javalin addAll(Javalin app, UmigonController umigonController) {
+    private static ClassifierOrganicOneDocument classifierOneDocEN;
+    private static ClassifierOrganicOneDocument classifierOneDocFR;
 
-        ClassifierOrganicOneDocument classifierOneDocEN = new ClassifierOrganicOneDocument(umigonController.getSemanticsEN());
-        ClassifierOrganicOneDocument classifierOneDocFR = new ClassifierOrganicOneDocument(umigonController.getSemanticsFR());
+    public static void initSentimentClassifiers(UmigonController umigonController) {
+        classifierOneDocEN = new ClassifierOrganicOneDocument(umigonController.getSemanticsEN());
+        classifierOneDocFR = new ClassifierOrganicOneDocument(umigonController.getSemanticsFR());
+    }
+    
+    public static Javalin addAll(Javalin app) {
 
         app.get("/api/organicForAText", ctx -> {
             JsonObjectBuilder jsonAnswer = Json.createObjectBuilder();

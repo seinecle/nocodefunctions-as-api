@@ -12,6 +12,7 @@ import jakarta.json.bind.JsonbBuilder;
 import jakarta.json.bind.JsonbConfig;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.StringWriter;
@@ -20,6 +21,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -56,6 +58,10 @@ public class APIController {
     public static Path tempFilesFolder;
 
     public static void main(String[] args) throws Exception {
+        start();
+    }
+
+    private static void start() throws FileNotFoundException, IOException, Exception {
         Properties props = new Properties();
         props.load(new FileInputStream("private/props.properties"));
         String port = props.getProperty("port");
@@ -74,8 +80,10 @@ public class APIController {
         pwdOwner = props.getProperty("pwdOwner");
 
         UmigonController umigonController = new UmigonController();
-        app = SentimentEndPoints.addAll(app, umigonController);
-        app = OrganicEndPoints.addAll(app, umigonController);
+        SentimentEndPoints.initSentimentClassifiers(umigonController);
+        OrganicEndPoints.initSentimentClassifiers(umigonController);
+        app = SentimentEndPoints.addAll(app);
+        app = OrganicEndPoints.addAll(app);
         app = PdfMatcherEndPoints.addAll(app);
         app = CowoEndPoint.addAll(app);
         app = LemmatizerLightEndPoint.addAll(app);
@@ -86,8 +94,18 @@ public class APIController {
         app = VosViewerConversionEndPoint.addAll(app);
         app = SpatializeEndPoint.addAll(app);
         app = BibliocouplingEndPoints.addAll(app);
+        addRestartEndPoint();
         System.out.println("running the api");
 
+    }
+
+    public static void addRestartEndPoint() {
+
+        app.get("/api/restart", ctx -> {
+            app.stop();
+            start();
+            System.out.println("nocodefunctions api restarted at time " + LocalDateTime.now().toString());
+        });
     }
 
     public static void increment() {

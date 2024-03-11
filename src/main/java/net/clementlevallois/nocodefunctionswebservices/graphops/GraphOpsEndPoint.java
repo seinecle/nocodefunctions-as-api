@@ -6,6 +6,7 @@
 package net.clementlevallois.nocodefunctionswebservices.graphops;
 
 import io.javalin.Javalin;
+import io.javalin.http.Context;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
@@ -27,7 +28,7 @@ public class GraphOpsEndPoint {
 
     public static Javalin addAll(Javalin app) {
 
-        app.get("/api/graphops/topnodes", ctx -> {
+        app.get("/api/graphops/topnodes", (Context ctx) -> {
             JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
 
@@ -41,6 +42,7 @@ public class GraphOpsEndPoint {
                 objectBuilder.add("gexf file: ", tempDataPath.toString());
                 JsonObject jsonObject = objectBuilder.build();
                 ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                return;
             }
             String nbNodes = ctx.queryParam("nbNodes");
             Integer nbNodesAsInteger;

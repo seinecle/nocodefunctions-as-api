@@ -17,14 +17,13 @@ import java.io.StringReader;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import net.clementlevallois.gaze.controller.CoocFunction;
-import net.clementlevallois.gaze.controller.SimilarityFunction;
 import net.clementlevallois.utils.Multiset;
 
 /**
@@ -36,22 +35,21 @@ public class GazeEndPoint {
     public static Javalin addAll(Javalin app) throws Exception {
 
         app.post("/api/gaze/cooc", (Context ctx) -> {
-            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
-            Map<Integer, Multiset<String>> lines = new TreeMap();
-
             byte[] bodyAsBytes = ctx.bodyAsBytes();
             String body = new String(bodyAsBytes, StandardCharsets.UTF_8);
             if (body.isEmpty()) {
-                objectBuilder.add("-99", "body of the request should not be empty");
-                JsonObject jsonObject = objectBuilder.build();
-                ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                String errorMsg = "body of the request should not be empty";
+                ctx.result(errorMsg).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                return;
             } else {
+                RunnableGazeCooc gazeRunnable = new RunnableGazeCooc();
                 JsonReader jsonReader = Json.createReader(new StringReader(body));
                 JsonObject jsonObject = jsonReader.readObject();
                 for (String nextKey : jsonObject.keySet()) {
                     if (nextKey.equals("lines")) {
                         JsonObject linesJson = jsonObject.getJsonObject(nextKey);
+                        Map<Integer, Multiset<String>> lines = new HashMap();
                         for (String nextLineKey : linesJson.keySet()) {
                             JsonArray jsonArray = linesJson.getJsonArray(nextLineKey);
                             List<String> list = new ArrayList();
@@ -62,32 +60,44 @@ public class GazeEndPoint {
                             multiset.addAllFromListOrSet(list);
                             lines.put(Integer.valueOf(nextLineKey), multiset);
                         }
+                        gazeRunnable.setLines(lines);
                     }
-                }
+                    if (nextKey.equals("sessionId")) {
+                        String sessionId = jsonObject.getString(nextKey);
+                        gazeRunnable.setSessionId(sessionId);
+                    }
+                    if (nextKey.equals("callbackURL")) {
+                        String callbackURL = jsonObject.getString(nextKey);
+                        gazeRunnable.setCallbackURL(callbackURL);
+                    }
+                    if (nextKey.equals("dataPersistenceId")) {
+                        String dataPersistenceId = jsonObject.getString(nextKey);
+                        gazeRunnable.setDataPersistenceId(dataPersistenceId);
+                    }
 
-                CoocFunction coocFunction = new CoocFunction();
-                String gexf = coocFunction.createGraphFromCooccurrences(lines, false);
-                ctx.result(gexf.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                }
+                gazeRunnable.runGazeCoocInBackgroundThread();
+                ctx.result("ok").status(HttpURLConnection.HTTP_OK);
             }
         });
 
         app.post("/api/gaze/sim", ctx -> {
-            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
-            Map<String, Set<String>> lines = new TreeMap();
-            int minSharedTarget = 1;
             byte[] bodyAsBytes = ctx.bodyAsBytes();
+
             String body = new String(bodyAsBytes, StandardCharsets.UTF_8);
             if (body.isEmpty()) {
-                objectBuilder.add("-99", "body of the request should not be empty");
-                JsonObject jsonObject = objectBuilder.build();
-                ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                String errorMsg = "body of the request should not be empty";
+                ctx.result(errorMsg).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                return;
             } else {
+                RunnableGazeSim gazeSimRunnable = new RunnableGazeSim();
                 JsonReader jsonReader = Json.createReader(new StringReader(body));
                 JsonObject jsonObject = jsonReader.readObject();
                 for (String nextKey : jsonObject.keySet()) {
                     if (nextKey.equals("lines")) {
                         JsonObject linesJson = jsonObject.getJsonObject(nextKey);
+                        Map<String, Set<String>> lines = new TreeMap();
                         for (String nextLineKey : linesJson.keySet()) {
                             JsonArray jsonArray = linesJson.getJsonArray(nextLineKey);
                             List<String> list = new ArrayList();
@@ -98,28 +108,34 @@ public class GazeEndPoint {
                             set.addAll(list);
                             lines.put(nextLineKey, set);
                         }
+                        gazeSimRunnable.setLines(lines);
+                    }
+                    if (nextKey.equals("sessionId")) {
+                        String sessionId = jsonObject.getString(nextKey);
+                        gazeSimRunnable.setSessionId(sessionId);
+                    }
+                    if (nextKey.equals("callbackURL")) {
+                        String callbackURL = jsonObject.getString(nextKey);
+                        gazeSimRunnable.setCallbackURL(callbackURL);
+                    }
+                    if (nextKey.equals("dataPersistenceId")) {
+                        String dataPersistenceId = jsonObject.getString(nextKey);
+                        gazeSimRunnable.setDataPersistenceId(dataPersistenceId);
                     }
                     if (nextKey.equals("parameters")) {
                         JsonObject parameters = jsonObject.getJsonObject(nextKey);
                         for (String nextKeyParam : parameters.keySet()) {
                             if (nextKeyParam.equals("minSharedTarget")) {
-                                minSharedTarget = parameters.getInt(nextKeyParam);
+                                int minSharedTarget = parameters.getInt(nextKeyParam);
+                                gazeSimRunnable.setMinSharedTarget(minSharedTarget);
                             }
                         }
                     }
                 }
-
-                SimilarityFunction simFunction = new SimilarityFunction();
-                String gexf = simFunction.createSimilarityGraph(lines, minSharedTarget);
-                if (gexf == null || gexf.isBlank()) {
-                    ctx.result("error gexf is null or empty".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
-                } else {
-                    ctx.result(gexf.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
-                }
+                gazeSimRunnable.runGazeSimInBackgroundThread();
+                ctx.result("ok").status(HttpURLConnection.HTTP_OK);
             }
         });
-
         return app;
-
     }
 }

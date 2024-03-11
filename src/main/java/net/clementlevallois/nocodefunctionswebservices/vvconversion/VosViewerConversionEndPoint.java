@@ -48,11 +48,9 @@ public class VosViewerConversionEndPoint {
             if (Files.exists(tempDataPath)) {
                 gexfAsString = Files.readString(tempDataPath, StandardCharsets.UTF_8);
             } else {
-                ctx.result("error for vv conversion, gexf file not found in disk".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                ctx.result("error for vv conversion, gexf file not found on disk".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_BAD_REQUEST);
             }
-
-            InputStream isOfTheGexf = new ByteArrayInputStream(gexfAsString.getBytes(StandardCharsets.UTF_8));
-            GexfToVOSViewerJson converter = new GexfToVOSViewerJson(isOfTheGexf);
+            GexfToVOSViewerJson converter = new GexfToVOSViewerJson(gexfAsString);
             converter.setMaxNumberNodes(500);
             converter.setTerminologyData(new Terminology());
             converter.getTerminologyData().setItem(item);
@@ -65,9 +63,12 @@ public class VosViewerConversionEndPoint {
             converter.getMetadataData().setAuthorCanBePlural("");
             converter.getMetadataData().setDescriptionOfData(descriptionData);
             String graphAsJsonVosViewer = converter.convertToJson();
-            graphAsJsonVosViewer = Json.encodePointer(graphAsJsonVosViewer);
-
-            ctx.result(graphAsJsonVosViewer.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+            if (graphAsJsonVosViewer.isBlank()) {
+                ctx.result("error for vv conversion, json file not produced".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+            } else {
+                graphAsJsonVosViewer = Json.encodePointer(graphAsJsonVosViewer);
+                ctx.result(graphAsJsonVosViewer.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+            }
         }
         );
 
