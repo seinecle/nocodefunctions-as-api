@@ -8,21 +8,26 @@ package net.clementlevallois.nocodefunctionswebservices.vvconversion;
 import io.javalin.Javalin;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonObjectBuilder;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
+import jakarta.json.JsonReader;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import static java.util.stream.Collectors.toList;
 import net.clementlevallois.gexfvosviewerjson.GexfToVOSViewerJson;
 import net.clementlevallois.gexfvosviewerjson.Metadata;
 import net.clementlevallois.gexfvosviewerjson.Terminology;
 import net.clementlevallois.gexfvosviewerjson.VOSViewerJsonToGexf;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
+import net.clementlevallois.utils.UnicodeBOMInputStream;
+import org.openide.util.Exceptions;
 
 /**
  *
@@ -42,13 +47,14 @@ public class VosViewerConversionEndPoint {
             String linkStrength = Optional.ofNullable(ctx.queryParam("linkStrength")).orElse("link strength");
             String totalLinkStrength = Optional.ofNullable(ctx.queryParam("totalLinkStrength")).orElse("total link strength");
             String descriptionData = Optional.ofNullable(ctx.queryParam("descriptionData")).orElse("description");
+
             String dataPersistenceUniqueId = Optional.ofNullable(ctx.queryParam("dataPersistenceUniqueId")).orElse("none");
             Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceUniqueId + "_result");
             String gexfAsString = "";
             if (Files.exists(tempDataPath)) {
                 gexfAsString = Files.readString(tempDataPath, StandardCharsets.UTF_8);
             } else {
-                ctx.result("error for vv conversion, gexf file not found on disk".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                ctx.result("error for conversion to vv, gexf file not found on disk".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_BAD_REQUEST);
             }
             GexfToVOSViewerJson converter = new GexfToVOSViewerJson(gexfAsString);
             converter.setMaxNumberNodes(500);
@@ -72,29 +78,42 @@ public class VosViewerConversionEndPoint {
         }
         );
 
-        app.post("/api/convert2gexf", ctx -> {
-            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
+        app.get("/api/convert2gexf", ctx -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
 
-            byte[] bodyAsBytes = ctx.bodyAsBytes();
-            if (bodyAsBytes.length == 0) {
-                objectBuilder.add("-99", "body of the request should not be empty");
-                JsonObject jsonObject = objectBuilder.build();
-                ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
-            } else {
-                InputStream isOfTheJson = new ByteArrayInputStream(bodyAsBytes);
-                VOSViewerJsonToGexf converter = new VOSViewerJsonToGexf(isOfTheJson);
+            String dataPersistenceUniqueId = Optional.ofNullable(ctx.queryParam("dataPersistenceUniqueId")).orElse("none");
+            Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceUniqueId);
+            if (!Files.exists(tempDataPath)) {
+                ctx.result("error for conversion to gexf, vv json file not found on disk".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_BAD_REQUEST);
+
+            }
+            try {
+                FileInputStream fis = new FileInputStream(tempDataPath.toString());
+                UnicodeBOMInputStream ubis = new UnicodeBOMInputStream(fis);
+                InputStreamReader isr = new InputStreamReader(ubis);
+                List<String> lines;
+                try (BufferedReader br = new BufferedReader(isr)) {
+                    ubis.skipBOM();
+                    lines = br.lines().collect(toList());
+                }
+                if (lines == null) {
+                    ctx.result("error reading vv json file for conversion to gexf".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                }
+                String jsonFixed = String.join("\n", lines);
+                VOSViewerJsonToGexf converter = new VOSViewerJsonToGexf(jsonFixed);
                 String gexfAsString = converter.convertToGexf();
-                if (gexfAsString == null) {
-                    ctx.result("error in the conversion to gexf".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                if (gexfAsString == null || gexfAsString.isBlank()) {
+                    ctx.result("error in the conversion if vv json to gexf".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
                 } else {
                     ctx.result(gexfAsString.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
                 }
+            } catch (NullPointerException | IOException ex) {
+                Exceptions.printStackTrace(ex);
+                ctx.result("error reading vv json file for conversion to gexf".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
             }
+
         }
         );
-
         return app;
-
     }
 }
