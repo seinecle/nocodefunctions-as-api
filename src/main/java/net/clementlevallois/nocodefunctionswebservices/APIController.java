@@ -102,6 +102,7 @@ public class APIController {
     public static void addRestartEndPoint() {
 
         app.get("/api/restart", ctx -> {
+            System.out.println("nocodefunctions api stopped at time " + LocalDateTime.now().toString());
             app.stop();
             start();
             System.out.println("nocodefunctions api restarted at time " + LocalDateTime.now().toString());
@@ -112,7 +113,7 @@ public class APIController {
         Long epochdays = LocalDate.now().toEpochDay();
         String message = epochdays.toString() + "\n";
         try {
-            Files.write(Paths.get("api_calls.txt"), message.getBytes(), StandardOpenOption.APPEND);
+            Files.write(Paths.get("api_calls.txt"), message.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException e) {
             System.out.println("issue with the api call counter");
             System.out.println(e.getMessage());

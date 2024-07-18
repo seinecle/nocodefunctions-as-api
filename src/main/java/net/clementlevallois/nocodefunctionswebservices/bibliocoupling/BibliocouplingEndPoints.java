@@ -28,8 +28,6 @@ public class BibliocouplingEndPoints {
     private static BlockingQueue<Runnable> requestQueue;
     private static ConcurrentHashMap<Context, String> results;
     private static int delayBetweenOpenAlexCalls = 100;
-//    private static int counterDebug = 0;
-//    private static int counterResultsDebug = 0;
 
     public static Javalin addAll(Javalin app) throws Exception {
 
