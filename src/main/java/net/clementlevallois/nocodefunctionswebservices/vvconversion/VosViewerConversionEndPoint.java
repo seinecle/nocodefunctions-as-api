@@ -8,7 +8,6 @@ package net.clementlevallois.nocodefunctionswebservices.vvconversion;
 import io.javalin.Javalin;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
-import jakarta.json.JsonReader;
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -85,31 +84,32 @@ public class VosViewerConversionEndPoint {
             Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceUniqueId);
             if (!Files.exists(tempDataPath)) {
                 ctx.result("error for conversion to gexf, vv json file not found on disk".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_BAD_REQUEST);
-
-            }
-            try {
-                FileInputStream fis = new FileInputStream(tempDataPath.toString());
-                UnicodeBOMInputStream ubis = new UnicodeBOMInputStream(fis);
-                InputStreamReader isr = new InputStreamReader(ubis);
-                List<String> lines;
-                try (BufferedReader br = new BufferedReader(isr)) {
-                    ubis.skipBOM();
-                    lines = br.lines().collect(toList());
-                }
-                if (lines == null) {
+            } else {
+                try {
+                    FileInputStream fis = new FileInputStream(tempDataPath.toString());
+                    UnicodeBOMInputStream ubis = new UnicodeBOMInputStream(fis);
+                    InputStreamReader isr = new InputStreamReader(ubis);
+                    List<String> lines;
+                    try (BufferedReader br = new BufferedReader(isr)) {
+                        ubis.skipBOM();
+                        lines = br.lines().collect(toList());
+                    }
+                    if (lines == null) {
+                        ctx.result("error reading vv json file for conversion to gexf".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                    } else {
+                        String jsonFixed = String.join("\n", lines);
+                        VOSViewerJsonToGexf converter = new VOSViewerJsonToGexf(jsonFixed);
+                        String gexfAsString = converter.convertToGexf();
+                        if (gexfAsString == null || gexfAsString.isBlank()) {
+                            ctx.result("error in the conversion if vv json to gexf".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
+                        } else {
+                            ctx.result(gexfAsString.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+                        }
+                    }
+                } catch (NullPointerException | IOException ex) {
+                    Exceptions.printStackTrace(ex);
                     ctx.result("error reading vv json file for conversion to gexf".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
                 }
-                String jsonFixed = String.join("\n", lines);
-                VOSViewerJsonToGexf converter = new VOSViewerJsonToGexf(jsonFixed);
-                String gexfAsString = converter.convertToGexf();
-                if (gexfAsString == null || gexfAsString.isBlank()) {
-                    ctx.result("error in the conversion if vv json to gexf".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
-                } else {
-                    ctx.result(gexfAsString.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
-                }
-            } catch (NullPointerException | IOException ex) {
-                Exceptions.printStackTrace(ex);
-                ctx.result("error reading vv json file for conversion to gexf".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
             }
 
         }

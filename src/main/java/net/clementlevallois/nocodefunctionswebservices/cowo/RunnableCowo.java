@@ -37,6 +37,7 @@ public class RunnableCowo {
     private int minCoocFreq = 3;
     private int minTermFreq = 3;
     private int maxNGram = 4;
+    private boolean firstNames = true;
     private boolean replaceStopwords = false;
     private boolean removeAccents = false;
     private boolean isScientificCorpus = false;
@@ -49,7 +50,7 @@ public class RunnableCowo {
                 CowoFunction cowoFunction = new CowoFunction();
                 cowoFunction.setFlattenToAScii(removeAccents);
                 cowoFunction.setSessionIdAndCallbackURL(sessionId, callbackURL, dataPersistenceId);
-                String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, removeAccents, minCoocFreq, minTermFreq, typeCorrection, maxNGram, lemmatize);
+                String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, firstNames, removeAccents, minCoocFreq, minTermFreq, typeCorrection, maxNGram, lemmatize);
                 Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId + "_result");
                 Files.writeString(tempResultsPath, gexf, StandardCharsets.UTF_8);
 
@@ -182,6 +183,10 @@ public class RunnableCowo {
 
     public void setIsScientificCorpus(boolean isScientificCorpus) {
         this.isScientificCorpus = isScientificCorpus;
+    }
+
+    public void setFirstNames(boolean firstNames) {
+        this.firstNames = firstNames;
     }
 
     public boolean isLemmatize() {

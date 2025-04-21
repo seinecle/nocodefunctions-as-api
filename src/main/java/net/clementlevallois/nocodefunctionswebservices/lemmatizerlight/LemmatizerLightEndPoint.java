@@ -16,7 +16,10 @@ import java.io.ObjectInputStream;
 import java.io.StringReader;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -58,13 +61,19 @@ public class LemmatizerLightEndPoint {
                         lang = jsonObject.getString(nextKey);
                     }
                 }
-
-                Lemmatizer lemmatizer = new Lemmatizer(lang);
+                List<String> languages = Arrays.asList(lang.split(","));
+                List<Lemmatizer> lemmatizersForOneLanguage = new ArrayList();
+                for (String language : languages) {
+                    lemmatizersForOneLanguage.add(new Lemmatizer(language));
+                }
                 JsonObjectBuilder job = Json.createObjectBuilder();
 
                 for (Map.Entry<Integer, String> entry : lines.entrySet()) {
-                    String sentenceLemmatized = lemmatizer.sentenceLemmatizer(entry.getValue());
-                    job.add(String.valueOf(entry.getKey()), sentenceLemmatized);
+                    String lineToLemmatize = entry.getValue();
+                    for (var lemmatizer : lemmatizersForOneLanguage) {
+                        lineToLemmatize = lemmatizer.sentenceLemmatizer(lineToLemmatize);
+                    }
+                    job.add(String.valueOf(entry.getKey()), lineToLemmatize);
                 }
                 String result = APIController.turnJsonObjectToString(job.build());
                 if (result == null || result.isBlank()) {

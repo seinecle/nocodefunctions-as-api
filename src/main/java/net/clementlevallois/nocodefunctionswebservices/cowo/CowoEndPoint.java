@@ -89,6 +89,9 @@ public class CowoEndPoint {
                     if (nextKey.equals("isScientificCorpus")) {
                         runnableCowo.setIsScientificCorpus(jsonObject.getBoolean(nextKey));
                     }
+                    if (nextKey.equals("firstNames")) {
+                        runnableCowo.setFirstNames(jsonObject.getBoolean(nextKey));
+                    }
                     if (nextKey.equals("typeCorrection")) {
                         runnableCowo.setTypeCorrection(jsonObject.getString(nextKey));
                     }
@@ -97,9 +100,6 @@ public class CowoEndPoint {
                     }
                     if (nextKey.equals("callbackURL")) {
                         runnableCowo.setCallbackURL(jsonObject.getString(nextKey));
-                    }
-                    if (nextKey.equals("dataPersistenceId")) {
-                        runnableCowo.setDataPersistenceId(jsonObject.getString(nextKey));
                     }
                 }
 

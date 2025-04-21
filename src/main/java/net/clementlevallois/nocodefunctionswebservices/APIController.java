@@ -25,10 +25,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.clementlevallois.functions.model.Occurrence;
-import net.clementlevallois.nocodefunctionswebservices.bibliocoupling.BibliocouplingEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.cowo.CowoEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.sentiment.SentimentEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.gaze.GazeEndPoint;
@@ -38,7 +40,7 @@ import net.clementlevallois.nocodefunctionswebservices.linkprediction.LinkPredic
 import net.clementlevallois.nocodefunctionswebservices.organic.OrganicEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.pdfmatcher.PdfMatcherEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.spatialize.SpatializeEndPoint;
-import net.clementlevallois.nocodefunctionswebservices.topics.TopicsEndPoint;
+import net.clementlevallois.nocodefunctionswebservices.workflow.topics.TopicsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.vvconversion.VosViewerConversionEndPoint;
 import net.clementlevallois.umigon.classifier.controller.UmigonController;
 import net.clementlevallois.umigon.model.classification.Document;
@@ -56,6 +58,10 @@ public class APIController {
     private static Javalin app;
     public static String pwdOwner;
     public static Path tempFilesFolder;
+
+    private static final Logger LOGGER = Logger.getLogger(APIController.class.getName());
+
+    public static final ExecutorService backgroundExecutor = Executors.newCachedThreadPool();
 
     public static void main(String[] args) throws Exception {
         start();
@@ -93,10 +99,36 @@ public class APIController {
         app = GazeEndPoint.addAll(app);
         app = VosViewerConversionEndPoint.addAll(app);
         app = SpatializeEndPoint.addAll(app);
-        app = BibliocouplingEndPoints.addAll(app);
         addRestartEndPoint();
+        Runtime.getRuntime().addShutdownHook(new Thread(APIController::stopExecutorService));
         System.out.println("running the api");
 
+    }
+
+    public static void stopExecutorService() {
+        LOGGER.info("Attempting to shut down background executor service...");
+        backgroundExecutor.shutdown(); // Disable new tasks from being submitted
+        try {
+            // Wait a while for existing tasks to terminate
+            if (!backgroundExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
+                LOGGER.warning("Executor did not terminate in 60 seconds, forcing shutdown...");
+                backgroundExecutor.shutdownNow(); // Cancel currently executing tasks
+                // Wait a while for tasks to respond to being cancelled
+                if (!backgroundExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
+                    LOGGER.severe("Executor did not terminate even after forced shutdown.");
+                } else {
+                    LOGGER.info("Executor terminated after forced shutdown.");
+                }
+            } else {
+                LOGGER.info("Executor terminated gracefully.");
+            }
+        } catch (InterruptedException ie) {
+            // (Re-)Cancel if current thread also interrupted
+            LOGGER.warning("Executor shutdown interrupted, forcing shutdown now.");
+            backgroundExecutor.shutdownNow();
+            // Preserve interrupt status
+            Thread.currentThread().interrupt();
+        }
     }
 
     public static void addRestartEndPoint() {
