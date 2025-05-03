@@ -71,9 +71,9 @@ public class RunnableCowo {
                         .uri(uri)
                         .build();
 
-                HttpResponse<String> resp = client.send(request, HttpResponse.BodyHandlers.ofString());
+                client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
 
-            } catch (IOException | URISyntaxException | InterruptedException ex) {
+            } catch (IOException | URISyntaxException  ex) {
                 Exceptions.printStackTrace(ex);
             }
 

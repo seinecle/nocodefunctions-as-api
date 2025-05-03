@@ -20,8 +20,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.StructuredTaskScope;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.openide.util.Exceptions;
 
 /**
  * Orchestrates the topics workflow: topic detection, GEXF saving, Json data
@@ -66,74 +68,56 @@ public class RunnableTopicsWorkflow implements Runnable {
 
         LOGGER.log(Level.INFO, "Starting workflow run for id: {0}", dataPersistenceId);
 
-        Map<Integer, Multiset<String>> keywordsPerTopicMap = null;
-        Map<Integer, Multiset<Integer>> topicsPerLineMap = null;
-        String gexfSemanticNetwork = null;
-
         try {
             // --- Step 1: Topic Detection ---
             statusMessage = "Starting topic detection...";
             sendProgressUpdate(10, statusMessage);
+
             TopicDetectionFunction topicsFunction = new TopicDetectionFunction();
             topicsFunction.setRemoveAccents(removeAccents);
             topicsFunction.setSessionIdAndCallbackURL(sessionId, callbackURL, dataPersistenceId);
             topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber, minTermFreq, lemmatize);
 
-            keywordsPerTopicMap = topicsFunction.getTopicsNumberToKeyTerms();
-            topicsPerLineMap = topicsFunction.getLinesAndTheirKeyTopics();
-            gexfSemanticNetwork = topicsFunction.getGexfOfSemanticNetwork();
+            final Map<Integer, Multiset<String>> keywordsPerTopicMap = topicsFunction.getTopicsNumberToKeyTerms();
+            final Map<Integer, Multiset<Integer>> topicsPerLineMap = topicsFunction.getLinesAndTheirKeyTopics();
+            final String gexfSemanticNetwork = topicsFunction.getGexfOfSemanticNetwork();
 
             if (keywordsPerTopicMap == null || keywordsPerTopicMap.isEmpty()) {
-                statusMessage = "Topic detection finished, no topics detected";
+                statusMessage = "Topic detection finished, no topics detected.";
                 sendProgressUpdate(100, statusMessage);
                 return;
             }
             statusMessage = "Topic detection finished.";
             sendProgressUpdate(50, statusMessage);
 
-            // --- Step 2: Save GEXF ---
-            if (requestedFormats.contains("gexf")) {
-                statusMessage = "Saving GEXF file...";
-                sendProgressUpdate(60, statusMessage);
-                if (gexfSemanticNetwork != null && !gexfSemanticNetwork.isBlank()) {
-                    try {
-                        GexfSaverTask gexfTask = new GexfSaverTask(gexfSemanticNetwork, tempDirForThisTask, dataPersistenceId);
-                        gexfTask.save();
-                        statusMessage = "GEXF file saved.";
-                        sendProgressUpdate(70, statusMessage);
-                    } catch (IOException e) {
-                        statusMessage = "Failed to save GEXF file.";
-                        sendProgressUpdate(70, statusMessage);
-                    }
-                } else {
-                    LOGGER.log(Level.WARNING, "GEXF format requested but no GEXF data generated for {0}", dataPersistenceId);
-                    statusMessage = "GEXF file could not be generated.";
-                    sendProgressUpdate(70, statusMessage);
-                }
-            }
+            // --- Step 2 and Step 3: Save GEXF and Json concurrently ---
+            try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
 
-            // --- Step 3: Generate and save data as Json for the Excel export ---
-            if (requestedFormats.contains("excel")) {
-                statusMessage = "Generating json file for data export to Excel...";
-                sendProgressUpdate(75, statusMessage);
-                try {
-                    JsonDataSaverTask jsonSavingTask = new JsonDataSaverTask(keywordsPerTopicMap, topicsPerLineMap, gexfSemanticNetwork, tempDirForThisTask, dataPersistenceId
-                    );
-                    jsonSavingTask.saveJsonData(); // Call the export/save method
-                    statusMessage = "Json file saved.";
-                    sendProgressUpdate(90, statusMessage);
-                } catch (IOException e) {
-                    LOGGER.log(Level.SEVERE, "Json  generation step failed for " + dataPersistenceId, e); // Log context here too
-                    statusMessage = "Json generation failed: " + e.getMessage();
-                    sendProgressUpdate(90, statusMessage);
-                    jsonStepFailed = true;
+                if (requestedFormats.contains("gexf")) {
+                    scope.fork(() -> {
+                        saveGexfFile(gexfSemanticNetwork, tempDirForThisTask, dataPersistenceId);
+                        return null;
+                    });
                 }
+
+                if (requestedFormats.contains("excel")) {
+                    scope.fork(() -> {
+                        saveJsonFile(keywordsPerTopicMap, topicsPerLineMap, gexfSemanticNetwork, tempDirForThisTask, dataPersistenceId);
+                        return null;
+                    });
+                }
+
+                scope.join();
+                scope.throwIfFailed();
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error during saving files in workflow for " + dataPersistenceId, e);
+                jsonStepFailed = true;
             }
 
             // --- Step 4: Finalize Status ---
             if (jsonStepFailed) {
                 statusMessage = "Workflow completed with errors (Json generation failed).";
-                overallSuccess = true; // Still overall success if GEXF was ok
+                overallSuccess = false;
             } else {
                 statusMessage = "Workflow completed successfully.";
                 overallSuccess = true;
@@ -141,7 +125,6 @@ public class RunnableTopicsWorkflow implements Runnable {
             sendProgressUpdate(100, statusMessage);
 
         } catch (Exception e) {
-            // Catch major failures
             LOGGER.log(Level.SEVERE, "Workflow failed critically for " + dataPersistenceId, e);
             statusMessage = "Workflow failed: " + e.getMessage();
             overallSuccess = false;
@@ -156,6 +139,7 @@ public class RunnableTopicsWorkflow implements Runnable {
             } catch (IOException | InterruptedException | URISyntaxException e) {
                 LOGGER.log(Level.SEVERE, "Failed to send final callback for " + dataPersistenceId, e);
             }
+
             // --- Step 6: Cleanup Input Data File ---
             try {
                 Path inputPath = tempDirForThisTask.resolve(dataPersistenceId);
@@ -165,13 +149,39 @@ public class RunnableTopicsWorkflow implements Runnable {
             } catch (IOException e) {
                 LOGGER.log(Level.WARNING, "Could not delete temporary input file: " + dataPersistenceId, e);
             }
+
             LOGGER.log(Level.INFO, "Finished workflow run for id: {0} with success={1}", new Object[]{dataPersistenceId, overallSuccess});
         }
     }
 
     /**
-     * Sends a progress update callback
+     * Helper methods for saving files *
      */
+    private void saveGexfFile(String gexfSemanticNetwork, Path tempDir, String id) {
+        if (gexfSemanticNetwork != null && !gexfSemanticNetwork.isBlank()) {
+            try {
+                GexfSaverTask gexfTask = new GexfSaverTask(gexfSemanticNetwork, tempDir, id);
+                gexfTask.save();
+                sendProgressUpdate(70, "GEXF file saved.");
+            } catch (IOException ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        } else {
+            sendProgressUpdate(70, "GEXF file could not be generated.");
+        }
+    }
+
+    private void saveJsonFile(Map<Integer, Multiset<String>> keywordsPerTopicMap, Map<Integer, Multiset<Integer>> topicsPerLineMap,
+            String gexfSemanticNetwork, Path tempDir, String id) {
+        try {
+            JsonDataSaverTask jsonSavingTask = new JsonDataSaverTask(keywordsPerTopicMap, topicsPerLineMap, gexfSemanticNetwork, tempDir, id);
+            jsonSavingTask.saveJsonData();
+            sendProgressUpdate(90, "Json file saved.");
+        } catch (IOException ex) {
+            Exceptions.printStackTrace(ex);
+        }
+    }
+
     private void sendProgressUpdate(int progress, String message) {
         if (callbackURL == null || callbackURL.isBlank()) {
             return;

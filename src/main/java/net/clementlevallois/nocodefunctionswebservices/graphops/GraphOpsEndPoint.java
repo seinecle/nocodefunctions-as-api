@@ -7,6 +7,7 @@ package net.clementlevallois.nocodefunctionswebservices.graphops;
 
 import io.javalin.Javalin;
 import io.javalin.http.Context;
+import io.javalin.http.Handler;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
@@ -17,9 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
-import net.clementlevallois.functions.model.KeyNodesInfo;
 import net.clementlevallois.graphops.GetTopNodesFromThickestEdges;
-import net.clementlevallois.keynode.insights.function.controller.KeyNodeInsightsFunction;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 
 /**
@@ -47,20 +46,18 @@ public class GraphOpsEndPoint {
                 return;
             }
             String nbNodes = ctx.queryParam("nbNodes");
+            String callbackURL = ctx.queryParam("callbackURL");
             Integer nbNodesAsInteger;
             try {
                 nbNodesAsInteger = Integer.valueOf(nbNodes);
             } catch (NumberFormatException e) {
                 nbNodesAsInteger = 30;
             }
-            GetTopNodesFromThickestEdges getTopNodes = new GetTopNodesFromThickestEdges(gexfAsString);
-            String jsonResult = getTopNodes.returnTopNodesAndEdges(nbNodesAsInteger);
-            jsonResult = Json.encodePointer(jsonResult);
-            if (jsonResult == null || jsonResult.isBlank()) {
-                ctx.result("error in graph ops API, return json is null or empty".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
-            } else {
-                ctx.result(jsonResult.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
-            }
+            var runnable = new RunnableGetTopNodesFromGraph();
+            runnable.setCallbackURL(callbackURL);
+            runnable.setGexfAsString(gexfAsString);
+            runnable.runTopNodesInBackgroundThread(nbNodesAsInteger);
+            ctx.result("OK".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
         });
 
         app.get("/api/graphops/keynodes", (Context ctx) -> {
@@ -82,6 +79,8 @@ public class GraphOpsEndPoint {
             String userSuppliedCommunityFieldName = ctx.queryParam("userSuppliedCommunityFieldName");
             String maxTopNodesPerCommunity = ctx.queryParam("maxKeyNodesPerCommunity");
             String minCommunitySize = ctx.queryParam("minCommunitySize");
+            String callbackURL = ctx.queryParam("callbackURL");
+
             Integer maxTopNodesPerCommunityAsInteger;
             try {
                 maxTopNodesPerCommunityAsInteger = Integer.valueOf(maxTopNodesPerCommunity);
@@ -94,13 +93,62 @@ public class GraphOpsEndPoint {
             } catch (NumberFormatException e) {
                 minCommunitySizeAsInteger = 15;
             }
-            var keyNodes = new KeyNodeInsightsFunction();
-            keyNodes.importGexfAsGraph(gexfAsString);
-            KeyNodesInfo keyNodesInfo = keyNodes.analyze(userSuppliedCommunityFieldName, maxTopNodesPerCommunityAsInteger, minCommunitySizeAsInteger);
-            if (keyNodesInfo == null) {
-                ctx.result("error in graph ops API for comunity insights, return json is null or empty".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_INTERNAL_ERROR);
-            } else {
-                ctx.result(APIController.byteArraySerializerForAnyObject(keyNodesInfo)).status(HttpURLConnection.HTTP_OK);
+            var keyNodesOps = new RunnableGetKeyNodes();
+            keyNodesOps.setCallbackURL(callbackURL);
+            keyNodesOps.setDataPersistenceId(dataPersistenceId);
+            keyNodesOps.setGexfAsString(gexfAsString);
+            keyNodesOps.runKeyNodesInBackgroundThread(userSuppliedCommunityFieldName, maxTopNodesPerCommunityAsInteger, minCommunitySizeAsInteger);
+            ctx.result("OK".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+        });
+
+        app.get("/api/graphops/textualSummaryPerCommunity", new Handler() {
+            @Override
+            public void handle(Context ctx) throws Exception {
+                JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
+                NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
+
+                String dataPersistenceId = ctx.queryParam("dataPersistenceId");
+                Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId + "_result");
+                String gexfAsString = "";
+                try {
+                    gexfAsString = Files.readString(tempDataPath, StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    objectBuilder.add("-99", "gexf file not readable on disk");
+                    objectBuilder.add("gexf file: ", tempDataPath.toString());
+                    JsonObject jsonObject = objectBuilder.build();
+                    ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                    return;
+                }
+                String userSuppliedCommunityFieldName = ctx.queryParam("userSuppliedCommunityFieldName");
+                String maxTextLengthPerCommunity = ctx.queryParam("maxTextLengthPerCommunity");
+                String textualAttribute = ctx.queryParam("textualAttribute");
+                String minCommunitySize = ctx.queryParam("minCommunitySize");
+                String maxTopNodes = ctx.queryParam("maxTopNodes");
+                String callBackURL = ctx.queryParam("callBackURL");
+                Integer maxTextLengthPerCommunityAsInteger;
+                try {
+                    maxTextLengthPerCommunityAsInteger = Integer.valueOf(maxTextLengthPerCommunity);
+                } catch (NumberFormatException e) {
+                    maxTextLengthPerCommunityAsInteger = 500;
+                }
+                Integer minCommunitySizeAsInteger;
+                try {
+                    minCommunitySizeAsInteger = Integer.valueOf(minCommunitySize);
+                } catch (NumberFormatException e) {
+                    minCommunitySizeAsInteger = 20;
+                }
+                Integer maxTopNodesAsInteger;
+                try {
+                    maxTopNodesAsInteger = Integer.valueOf(maxTopNodes);
+                } catch (NumberFormatException e) {
+                    maxTopNodesAsInteger = 50;
+                }
+                var textualSummaryPerCommunity = new RunnableGetTextPerCommunity();
+                textualSummaryPerCommunity.setCallbackURL(callBackURL);
+                textualSummaryPerCommunity.setDataPersistenceId(dataPersistenceId);
+                textualSummaryPerCommunity.setGexfAsString(gexfAsString);
+                textualSummaryPerCommunity.runTextPerCommunityInBackgroundThread(userSuppliedCommunityFieldName, textualAttribute, maxTopNodesAsInteger, minCommunitySizeAsInteger, maxTextLengthPerCommunityAsInteger);
+                ctx.result("OK".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
             }
         });
 

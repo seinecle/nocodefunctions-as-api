@@ -10,6 +10,9 @@
     <version>1.0</version>
     <packaging>jar</packaging>
     <name>Nocode functions as an API</name>
+    <properties>
+        <langchain.version>1.0.0-alpha1</langchain.version>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>io.javalin</groupId>
@@ -49,19 +52,13 @@
         </dependency>
         <dependency>
             <groupId>net.clementlevallois.functions</groupId>
-            <artifactId>Linkprediction</artifactId>
-            <version>1.0</version>
-            <type>jar</type>
-        </dependency>
-        <dependency>
-            <groupId>net.clementlevallois.functions</groupId>
             <artifactId>spatialize-function</artifactId>
             <version>1.0</version>
             <type>jar</type>
         </dependency>
         <dependency>
             <groupId>net.clementlevallois.functions</groupId>
-            <artifactId>key-node-insights</artifactId>
+            <artifactId>llm-functions</artifactId>
             <version>1.0</version>
             <type>jar</type>
         </dependency>
@@ -123,15 +120,6 @@
     </dependencies>
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
-                <configuration>
-                    <source>21</source>
-                    <target>21</target>
-                </configuration>
-            </plugin>
             <plugin> 
                 <artifactId>maven-dependency-plugin</artifactId> 
                 <executions> 
@@ -158,6 +146,18 @@
                             <mainClass>net.clementlevallois.nocodefunctionswebservices.APIController</mainClass>
                         </manifest>
                     </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <source>24</source>
+                    <target>24</target>
+                    <compilerArgs>
+                        <arg>--enable-preview</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
         </plugins>

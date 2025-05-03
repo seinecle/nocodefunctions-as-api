@@ -36,12 +36,14 @@ import net.clementlevallois.nocodefunctionswebservices.sentiment.SentimentEndPoi
 import net.clementlevallois.nocodefunctionswebservices.gaze.GazeEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.graphops.GraphOpsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.lemmatizerlight.LemmatizerLightEndPoint;
-import net.clementlevallois.nocodefunctionswebservices.linkprediction.LinkPredictionEndPoint;
+import net.clementlevallois.llm.functions.LLMsOps;
+import net.clementlevallois.nocodefunctionswebservices.llms.LLMOpsEndpoints;
 import net.clementlevallois.nocodefunctionswebservices.organic.OrganicEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.pdfmatcher.PdfMatcherEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.spatialize.SpatializeEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.workflow.topics.TopicsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.vvconversion.VosViewerConversionEndPoint;
+import net.clementlevallois.nocodefunctionswebservices.workflow.communityinsights.CommunityInsightsEndPoint;
 import net.clementlevallois.umigon.classifier.controller.UmigonController;
 import net.clementlevallois.umigon.model.classification.Document;
 import net.clementlevallois.utils.Multiset;
@@ -58,6 +60,7 @@ public class APIController {
     private static Javalin app;
     public static String pwdOwner;
     public static Path tempFilesFolder;
+    public static LLMsOps LLMOps;
 
     private static final Logger LOGGER = Logger.getLogger(APIController.class.getName());
 
@@ -88,14 +91,18 @@ public class APIController {
         UmigonController umigonController = new UmigonController();
         SentimentEndPoints.initSentimentClassifiers(umigonController);
         OrganicEndPoints.initSentimentClassifiers(umigonController);
+
+        LLMOps = new LLMsOps();
+
         app = SentimentEndPoints.addAll(app);
         app = OrganicEndPoints.addAll(app);
         app = PdfMatcherEndPoints.addAll(app);
         app = CowoEndPoint.addAll(app);
         app = LemmatizerLightEndPoint.addAll(app);
         app = TopicsEndPoint.addAll(app);
+        app = LLMOpsEndpoints.addAll(app);
+        app = CommunityInsightsEndPoint.addAll(app);
         app = GraphOpsEndPoint.addAll(app);
-        app = LinkPredictionEndPoint.addAll(app);
         app = GazeEndPoint.addAll(app);
         app = VosViewerConversionEndPoint.addAll(app);
         app = SpatializeEndPoint.addAll(app);

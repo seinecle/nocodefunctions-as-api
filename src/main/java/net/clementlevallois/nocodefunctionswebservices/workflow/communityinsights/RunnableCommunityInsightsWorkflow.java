@@ -1,0 +1,273 @@
+package net.clementlevallois.nocodefunctionswebservices.workflow.communityinsights;
+
+// Imports remain largely the same, remove unused ones like UrlBuilder, JsonWriter etc.
+import jakarta.json.Json;
+import jakarta.json.JsonObjectBuilder;
+import net.clementlevallois.nocodefunctionswebservices.APIController;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.StructuredTaskScope;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import net.clementlevallois.functions.model.Names;
+import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetKeyNodes;
+import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetTextPerCommunity;
+import net.clementlevallois.nocodefunctionswebservices.llms.RunnableContextFromSample;
+
+/**
+ * Orchestrates the community insights workflow: key nodes per community,
+ * summary per community saving for later excel export.
+ */
+public class RunnableCommunityInsightsWorkflow implements Runnable {
+
+    private static final Logger LOGGER = Logger.getLogger(RunnableCommunityInsightsWorkflow.class.getName());
+
+    private String gexf;
+    private String sourceLang;
+    private String targetLang;
+    private String sessionId;
+    private String callbackURL;
+    private String dataPersistenceId;
+    private String textualAttribute;
+    private String userSuppliedCommunityFieldName;
+    private int maxTopNodesPerCommunityAsInteger;
+    private int minCommunitySizeAsInteger;
+    private int maxTextLength = 1000;
+
+    private final HttpClient httpClient;
+
+    public RunnableCommunityInsightsWorkflow() {
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(30))
+                .version(HttpClient.Version.HTTP_2)
+                .build();
+    }
+
+    @Override
+    public void run() {
+        boolean overallSuccess = false;
+
+        Path tempDirForThisTask = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId);
+
+        ConcurrentMap<String, String> contextPerCommunity = new ConcurrentHashMap();
+
+        LOGGER.log(Level.INFO, "Starting workflow run for id: {0}", dataPersistenceId);
+
+        try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+            if (!textualAttribute.isBlank()) {
+                scope.fork(() -> {
+                    // --- Task 1: Text collection per community ---
+                    String statusMessage = "Starting text detection per community";
+                    sendProgressUpdate(10, statusMessage);
+
+                    var textOps = new RunnableGetTextPerCommunity();
+                    textOps.setGexfAsString(gexf);
+                    textOps.setCallbackURL(callbackURL);
+                    textOps.setDataPersistenceId(dataPersistenceId);
+                    textOps.setSessionId(sessionId);
+                    Map<String, String> results = textOps.getTextPerCommunity(userSuppliedCommunityFieldName, textualAttribute, maxTopNodesPerCommunityAsInteger, minCommunitySizeAsInteger, maxTextLength);
+
+                    statusMessage = "text detection per community: over";
+                    sendProgressUpdate(20, statusMessage);
+
+                    // --- Task 2: Context per community ---
+                    statusMessage = "Starting context identification per community";
+                    sendProgressUpdate(20, statusMessage);
+
+                    for (Map.Entry<String, String> entry : results.entrySet()) {
+                        scope.fork(() -> {
+                            var contextDetector = new RunnableContextFromSample();
+                            contextDetector.setCallbackURL(callbackURL);
+                            contextDetector.setDataPersistenceId(dataPersistenceId);
+                            contextDetector.setSessionId(sessionId);
+                            String contextFromSample = contextDetector.getContextFromSample(gexf, sourceLang, targetLang);
+                            contextPerCommunity.put(entry.getKey(), contextFromSample);
+                            return null;
+                        });
+                    }
+
+                    JsonObjectBuilder joBuilder = Json.createObjectBuilder();
+                    for (Map.Entry<String, String> entry : contextPerCommunity.entrySet()) {
+                        joBuilder.add(entry.getKey(), entry.getValue());
+                    }
+                    String resultFileName = dataPersistenceId + "_" + Names.CONTEXT_FROM_SAMPLE.getDescription() + ".txt";
+                    Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), resultFileName);
+                    Files.writeString(tempResultsPath, joBuilder.build().toString(), StandardCharsets.UTF_8);
+
+                    statusMessage = "context identification per community: over";
+                    sendProgressUpdate(30, statusMessage);
+                    return null;
+                });
+            }
+            scope.fork(() -> {
+
+                // --- Task 3: Key nodes insights ---
+                String statusMessage = "Starting key nodes insights";
+                sendProgressUpdate(40, statusMessage);
+
+                var keyNodes = new RunnableGetKeyNodes();
+                keyNodes.setGexfAsString(gexf);
+                keyNodes.setCallbackURL(callbackURL);
+                keyNodes.setDataPersistenceId(dataPersistenceId);
+                keyNodes.setSessionId(sessionId);
+                keyNodes.getKeyNodes(userSuppliedCommunityFieldName, maxTopNodesPerCommunityAsInteger, minCommunitySizeAsInteger);
+                statusMessage = "key nodes per community: over";
+                sendProgressUpdate(50, statusMessage);
+                return null;
+            });
+
+            // --- Step 4: Finalize Status ---
+            String statusMessage = "Workflow completed successfully.";
+            overallSuccess = true;
+            sendProgressUpdate(100, statusMessage);
+
+            scope.join();
+            scope.throwIfFailed();
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Workflow failed critically for " + dataPersistenceId, e);
+            String statusMessage = "Workflow failed: " + e.getMessage();
+            overallSuccess = false;
+            try {
+                sendProgressUpdate(100, statusMessage);
+            } catch (Exception ignored) {
+            }
+        } finally {
+            // --- Step 5: Send Final Callback ---
+            try {
+                String statusMessage = "community insights finished";
+                sendFinalCallback(overallSuccess, statusMessage);
+            } catch (IOException | InterruptedException | URISyntaxException e) {
+                LOGGER.log(Level.SEVERE, "Failed to send final callback for " + dataPersistenceId, e);
+            }
+
+            // --- Step 6: Cleanup Input Data File ---
+            try {
+                Path inputPath = tempDirForThisTask.resolve(dataPersistenceId);
+                if (Files.deleteIfExists(inputPath)) {
+                    LOGGER.log(Level.INFO, "Deleted temporary input file: {0}", inputPath.toString());
+                }
+            } catch (IOException e) {
+                LOGGER.log(Level.WARNING, "Could not delete temporary input file: " + dataPersistenceId, e);
+            }
+            LOGGER.log(Level.INFO, "Finished workflow run for id: {0} with success={1}", new Object[]{dataPersistenceId, overallSuccess});
+        }
+    }
+
+    private void sendProgressUpdate(int progress, String message) {
+        if (callbackURL == null || callbackURL.isBlank()) {
+            return;
+        }
+        try {
+            JsonObjectBuilder joBuilder = Json.createObjectBuilder();
+            joBuilder.add("info", "PROGRESS");
+            joBuilder.add("function", "topics");
+            if (sessionId != null) {
+                joBuilder.add("sessionId", sessionId);
+            }
+            joBuilder.add("dataPersistenceId", dataPersistenceId);
+            joBuilder.add("progress", progress);
+            joBuilder.add("message", message != null ? message : "");
+            sendCallback(joBuilder.build().toString());
+        } catch (IOException | InterruptedException | URISyntaxException e) {
+            LOGGER.log(Level.WARNING, "Failed to send progress update for " + dataPersistenceId, e);
+        }
+    }
+
+    /**
+     * Sends the final success or failure callback including result paths
+     */
+    private void sendFinalCallback(boolean success, String message) throws IOException, URISyntaxException, InterruptedException {
+        if (callbackURL == null || callbackURL.isBlank()) {
+            LOGGER.log(Level.WARNING, "No callback URL configured. Final status cannot be sent for {0}", dataPersistenceId);
+            return;
+        }
+        JsonObjectBuilder joBuilder = Json.createObjectBuilder();
+        joBuilder.add("info", success ? "WORKFLOW_COMPLETED" : "FAILED");
+        joBuilder.add("function", Names.COMMUNITY_INSIGHTS.name());
+        if (sessionId != null) {
+            joBuilder.add("sessionId", sessionId);
+        }
+        joBuilder.add("dataPersistenceId", dataPersistenceId);
+        joBuilder.add("message", message != null ? message : "");
+        sendCallback(joBuilder.build().toString());
+    }
+
+    /**
+     * Generic method to send a JSON payload as a POST request to the callback
+     * URL
+     */
+    private void sendCallback(String jsonPayload) throws IOException, URISyntaxException, InterruptedException {
+        URI uri = new URI(callbackURL);
+        HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofString(jsonPayload, StandardCharsets.UTF_8);
+        HttpRequest request = HttpRequest.newBuilder()
+                .POST(bodyPublisher)
+                .uri(uri)
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(30))
+                .build();
+
+        LOGGER.log(Level.INFO, "Sending callback to {0} for {1}: Payload size={2} chars",
+                new Object[]{callbackURL, dataPersistenceId, jsonPayload.length()});
+
+        this.httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+
+    }
+
+    public void setSourceLang(String sourceLang) {
+        this.sourceLang = sourceLang;
+    }
+
+    public void setTargetLang(String targetLang) {
+        this.targetLang = targetLang;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public void setCallbackURL(String callbackURL) {
+        this.callbackURL = callbackURL;
+    }
+
+    public void setDataPersistenceId(String dataPersistenceId) {
+        this.dataPersistenceId = dataPersistenceId;
+    }
+
+    public void setUserSuppliedCommunityFieldName(String userSuppliedCommunityFieldName) {
+        this.userSuppliedCommunityFieldName = userSuppliedCommunityFieldName;
+    }
+
+    public void setGexf(String gexf) {
+        this.gexf = gexf;
+    }
+
+    public void setMaxTopNodesPerCommunityAsInteger(int maxTopNodesPerCommunityAsInteger) {
+        this.maxTopNodesPerCommunityAsInteger = maxTopNodesPerCommunityAsInteger;
+    }
+
+    public void setMinCommunitySizeAsInteger(int minCommunitySizeAsInteger) {
+        this.minCommunitySizeAsInteger = minCommunitySizeAsInteger;
+    }
+
+    public void setTextualAttribute(String textualAttribute) {
+        this.textualAttribute = textualAttribute;
+    }
+
+    public void setMaxTextLength(int maxTextLength) {
+        this.maxTextLength = maxTextLength;
+    }
+
+}
