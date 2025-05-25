@@ -1,5 +1,6 @@
-package net.clementlevallois.nocodefunctionswebservices.workflow.topics;
+package net.clementlevallois.nocodefunctionswebservices.workflow.cowo;
 
+import net.clementlevallois.nocodefunctionswebservices.workflow.topics.*;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -34,10 +35,14 @@ public class GexfSaverTask {
 
     /**
      * Saves the GEXF content to the specified file.
+     *
+     * @return The absolute path of the saved GEXF file as a String.
+     * @throws IOException If an error occurs during file writing.
      */
-    public void save() {
+    public String save() throws IOException {
         if (gexfContent.isBlank()) {
             LOGGER.log(Level.WARNING, "GEXF content is blank, cannot save file for {0}", baseFilename);
+            throw new IOException("Cannot save blank GEXF content.");
         }
 
         Path gexfPath = targetDirectory.resolve(baseFilename + "_result.gexf");
@@ -46,8 +51,11 @@ public class GexfSaverTask {
         try {
             Files.writeString(gexfPath, gexfContent, StandardCharsets.UTF_8);
             LOGGER.log(Level.INFO, "Successfully saved GEXF to: {0}", gexfPath.toAbsolutePath());
+            return gexfPath.toAbsolutePath().toString();
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Failed to write GEXF file: " + gexfPath.toAbsolutePath(), e);
+            // Attempt to delete partially written file? Maybe not necessary.
+            throw e; // Re-throw the exception to be handled by the caller
         }
     }
 }

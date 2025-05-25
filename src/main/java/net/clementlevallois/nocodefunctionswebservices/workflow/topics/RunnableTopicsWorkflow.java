@@ -1,6 +1,6 @@
 package net.clementlevallois.nocodefunctionswebservices.workflow.topics;
 
-// Imports remain largely the same, remove unused ones like UrlBuilder, JsonWriter etc.
+
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
@@ -8,7 +8,7 @@ import net.clementlevallois.topics.topic.detection.function.controller.TopicDete
 import net.clementlevallois.utils.Multiset;
 
 import java.io.IOException;
-import java.net.ConnectException; // Keep specific exceptions if needed for logging
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
@@ -23,12 +23,10 @@ import java.util.*;
 import java.util.concurrent.StructuredTaskScope;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import net.clementlevallois.functions.model.WorkflowTopicsProperties;
 import org.openide.util.Exceptions;
 
-/**
- * Orchestrates the topics workflow: topic detection, GEXF saving, Json data
- * saving for later excel export.
- */
+
 public class RunnableTopicsWorkflow implements Runnable {
 
     private static final Logger LOGGER = Logger.getLogger(RunnableTopicsWorkflow.class.getName());
@@ -49,6 +47,7 @@ public class RunnableTopicsWorkflow implements Runnable {
     private Set<String> requestedFormats;
 
     private final HttpClient httpClient;
+    private WorkflowTopicsProperties props;
 
     public RunnableTopicsWorkflow() {
         this.httpClient = HttpClient.newBuilder()
@@ -64,7 +63,7 @@ public class RunnableTopicsWorkflow implements Runnable {
         boolean overallSuccess = false;
         boolean jsonStepFailed = false;
         String statusMessage = "Workflow processing started.";
-        Path tempDirForThisTask = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId);
+        this.props = new WorkflowTopicsProperties(APIController.tempFilesFolder);
 
         LOGGER.log(Level.INFO, "Starting workflow run for id: {0}", dataPersistenceId);
 
@@ -95,14 +94,14 @@ public class RunnableTopicsWorkflow implements Runnable {
 
                 if (requestedFormats.contains("gexf")) {
                     scope.fork(() -> {
-                        saveGexfFile(gexfSemanticNetwork, tempDirForThisTask, dataPersistenceId);
+                        saveGexfFile(gexfSemanticNetwork, props.getGexfFilePath(dataPersistenceId));
                         return null;
                     });
                 }
 
-                if (requestedFormats.contains("excel")) {
+                if (requestedFormats.contains("json")) {
                     scope.fork(() -> {
-                        saveJsonFile(keywordsPerTopicMap, topicsPerLineMap, gexfSemanticNetwork, tempDirForThisTask, dataPersistenceId);
+                        saveJsonFile(keywordsPerTopicMap, topicsPerLineMap, props.getGlobalResultsJsonFilePath(dataPersistenceId));
                         return null;
                     });
                 }
@@ -136,15 +135,15 @@ public class RunnableTopicsWorkflow implements Runnable {
             // --- Step 5: Send Final Callback ---
             try {
                 sendFinalCallback(overallSuccess, statusMessage);
+                Files.writeString(props.getTopicsWorkflowCompleteFilePath(dataPersistenceId), "job finished");
             } catch (IOException | InterruptedException | URISyntaxException e) {
                 LOGGER.log(Level.SEVERE, "Failed to send final callback for " + dataPersistenceId, e);
             }
 
             // --- Step 6: Cleanup Input Data File ---
             try {
-                Path inputPath = tempDirForThisTask.resolve(dataPersistenceId);
-                if (Files.deleteIfExists(inputPath)) {
-                    LOGGER.log(Level.INFO, "Deleted temporary input file: {0}", inputPath.toString());
+                if (Files.deleteIfExists(props.getOriginalTextInputFilePath(dataPersistenceId))) {
+                    LOGGER.log(Level.INFO, "Deleted temporary input file");
                 }
             } catch (IOException e) {
                 LOGGER.log(Level.WARNING, "Could not delete temporary input file: " + dataPersistenceId, e);
@@ -157,11 +156,10 @@ public class RunnableTopicsWorkflow implements Runnable {
     /**
      * Helper methods for saving files *
      */
-    private void saveGexfFile(String gexfSemanticNetwork, Path tempDir, String id) {
+    private void saveGexfFile(String gexfSemanticNetwork, Path pathFileToSave) {
         if (gexfSemanticNetwork != null && !gexfSemanticNetwork.isBlank()) {
             try {
-                GexfSaverTask gexfTask = new GexfSaverTask(gexfSemanticNetwork, tempDir, id);
-                gexfTask.save();
+                Files.writeString(pathFileToSave, gexfSemanticNetwork);
                 sendProgressUpdate(70, "GEXF file saved.");
             } catch (IOException ex) {
                 Exceptions.printStackTrace(ex);
@@ -171,10 +169,9 @@ public class RunnableTopicsWorkflow implements Runnable {
         }
     }
 
-    private void saveJsonFile(Map<Integer, Multiset<String>> keywordsPerTopicMap, Map<Integer, Multiset<Integer>> topicsPerLineMap,
-            String gexfSemanticNetwork, Path tempDir, String id) {
+    private void saveJsonFile(Map<Integer, Multiset<String>> keywordsPerTopicMap, Map<Integer, Multiset<Integer>> topicsPerLineMap,Path resultFilePath) {
         try {
-            JsonDataSaverTask jsonSavingTask = new JsonDataSaverTask(keywordsPerTopicMap, topicsPerLineMap, gexfSemanticNetwork, tempDir, id);
+            JsonDataSaverTask jsonSavingTask = new JsonDataSaverTask(keywordsPerTopicMap, topicsPerLineMap, resultFilePath);
             jsonSavingTask.saveJsonData();
             sendProgressUpdate(90, "Json file saved.");
         } catch (IOException ex) {

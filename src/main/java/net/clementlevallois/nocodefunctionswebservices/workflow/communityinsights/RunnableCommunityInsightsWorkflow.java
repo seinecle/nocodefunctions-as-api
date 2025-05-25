@@ -21,15 +21,14 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.StructuredTaskScope;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import net.clementlevallois.functions.model.CommonExpressions;
+import net.clementlevallois.functions.model.CommunityInsightsWorkflow;
+import net.clementlevallois.functions.model.KeyNodesInfo;
 import net.clementlevallois.functions.model.Names;
 import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetKeyNodes;
 import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetTextPerCommunity;
 import net.clementlevallois.nocodefunctionswebservices.llms.RunnableContextFromSample;
 
-/**
- * Orchestrates the community insights workflow: key nodes per community,
- * summary per community saving for later excel export.
- */
 public class RunnableCommunityInsightsWorkflow implements Runnable {
 
     private static final Logger LOGGER = Logger.getLogger(RunnableCommunityInsightsWorkflow.class.getName());
@@ -102,12 +101,12 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
                     for (Map.Entry<String, String> entry : contextPerCommunity.entrySet()) {
                         joBuilder.add(entry.getKey(), entry.getValue());
                     }
-                    String resultFileName = dataPersistenceId + "_" + Names.CONTEXT_FROM_SAMPLE.getDescription() + ".txt";
-                    Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), resultFileName);
+                    String contextSampleFile = dataPersistenceId + CommunityInsightsWorkflow.CONTEXT_FROM_SAMPLE_FILE_NAME_EXTENSION + CommunityInsightsWorkflow.CONTEXT_FROM_SAMPLE_FILE_EXTENSION;
+                    Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), contextSampleFile);
                     Files.writeString(tempResultsPath, joBuilder.build().toString(), StandardCharsets.UTF_8);
 
                     statusMessage = "context identification per community: over";
-                    sendProgressUpdate(30, statusMessage);
+                    sendProgressUpdate(50, statusMessage);
                     return null;
                 });
             }
@@ -122,18 +121,24 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
                 keyNodes.setCallbackURL(callbackURL);
                 keyNodes.setDataPersistenceId(dataPersistenceId);
                 keyNodes.setSessionId(sessionId);
-                keyNodes.getKeyNodes(userSuppliedCommunityFieldName, maxTopNodesPerCommunityAsInteger, minCommunitySizeAsInteger);
+                KeyNodesInfo keyNodesInfo = keyNodes.getKeyNodes(userSuppliedCommunityFieldName, maxTopNodesPerCommunityAsInteger, minCommunitySizeAsInteger);
+
+                String keyNodesFile = dataPersistenceId + CommunityInsightsWorkflow.KEY_NODES_NAME_EXTENSION + CommunityInsightsWorkflow.KEY_NODES_FILE_EXTENSION;
+                Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), keyNodesFile);
+                Files.writeString(tempResultsPath, keyNodesInfo.toJsonForInsights().toString(), StandardCharsets.UTF_8);
                 statusMessage = "key nodes per community: over";
                 sendProgressUpdate(50, statusMessage);
                 return null;
             });
 
             // --- Step 4: Finalize Status ---
+            scope.join();
             String statusMessage = "Workflow completed successfully.";
             overallSuccess = true;
             sendProgressUpdate(100, statusMessage);
-
-            scope.join();
+            String workflowCompleteFlagFile = dataPersistenceId + CommonExpressions.WORKFLOW_COMPLETE_FILE_NAME_EXTENSION;
+            Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), workflowCompleteFlagFile);
+            Files.writeString(tempResultsPath, "community insights workflow is complete", StandardCharsets.UTF_8);
             scope.throwIfFailed();
 
         } catch (Exception e) {
@@ -145,15 +150,7 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
             } catch (Exception ignored) {
             }
         } finally {
-            // --- Step 5: Send Final Callback ---
-            try {
-                String statusMessage = "community insights finished";
-                sendFinalCallback(overallSuccess, statusMessage);
-            } catch (IOException | InterruptedException | URISyntaxException e) {
-                LOGGER.log(Level.SEVERE, "Failed to send final callback for " + dataPersistenceId, e);
-            }
-
-            // --- Step 6: Cleanup Input Data File ---
+            // Cleanup Input Data File ---
             try {
                 Path inputPath = tempDirForThisTask.resolve(dataPersistenceId);
                 if (Files.deleteIfExists(inputPath)) {
@@ -162,7 +159,6 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
             } catch (IOException e) {
                 LOGGER.log(Level.WARNING, "Could not delete temporary input file: " + dataPersistenceId, e);
             }
-            LOGGER.log(Level.INFO, "Finished workflow run for id: {0} with success={1}", new Object[]{dataPersistenceId, overallSuccess});
         }
     }
 
@@ -186,29 +182,6 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
         }
     }
 
-    /**
-     * Sends the final success or failure callback including result paths
-     */
-    private void sendFinalCallback(boolean success, String message) throws IOException, URISyntaxException, InterruptedException {
-        if (callbackURL == null || callbackURL.isBlank()) {
-            LOGGER.log(Level.WARNING, "No callback URL configured. Final status cannot be sent for {0}", dataPersistenceId);
-            return;
-        }
-        JsonObjectBuilder joBuilder = Json.createObjectBuilder();
-        joBuilder.add("info", success ? "WORKFLOW_COMPLETED" : "FAILED");
-        joBuilder.add("function", Names.COMMUNITY_INSIGHTS.name());
-        if (sessionId != null) {
-            joBuilder.add("sessionId", sessionId);
-        }
-        joBuilder.add("dataPersistenceId", dataPersistenceId);
-        joBuilder.add("message", message != null ? message : "");
-        sendCallback(joBuilder.build().toString());
-    }
-
-    /**
-     * Generic method to send a JSON payload as a POST request to the callback
-     * URL
-     */
     private void sendCallback(String jsonPayload) throws IOException, URISyntaxException, InterruptedException {
         URI uri = new URI(callbackURL);
         HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofString(jsonPayload, StandardCharsets.UTF_8);

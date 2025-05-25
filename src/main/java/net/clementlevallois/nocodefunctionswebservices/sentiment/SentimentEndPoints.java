@@ -49,11 +49,7 @@ public class SentimentEndPoints {
             String text = ctx.queryParam("text");
             String withoutContactAndTextTitle = ctx.queryParam("shorter");
             Boolean withoutContactAndTextTitleBoolean;
-            if (withoutContactAndTextTitle != null && (withoutContactAndTextTitle.equals("true") | withoutContactAndTextTitle.equals("false")) && Boolean.parseBoolean(withoutContactAndTextTitle)) {
-                withoutContactAndTextTitleBoolean = true;
-            } else {
-                withoutContactAndTextTitleBoolean = false;
-            }
+            withoutContactAndTextTitleBoolean = withoutContactAndTextTitle != null && (withoutContactAndTextTitle.equals("true") | withoutContactAndTextTitle.equals("false")) && Boolean.parseBoolean(withoutContactAndTextTitle);
 
             String textLang = ctx.queryParam("text-lang");
             if (textLang == null || (textLang.isBlank())) {
@@ -167,11 +163,7 @@ public class SentimentEndPoints {
             String text = ctx.body();
             String withoutContactAndTextTitle = ctx.queryParam("shorter");
             Boolean withoutContactAndTextTitleBoolean;
-            if (withoutContactAndTextTitle != null && (withoutContactAndTextTitle.equals("true") | withoutContactAndTextTitle.equals("false")) && Boolean.parseBoolean(withoutContactAndTextTitle)) {
-                withoutContactAndTextTitleBoolean = true;
-            } else {
-                withoutContactAndTextTitleBoolean = false;
-            }
+            withoutContactAndTextTitleBoolean = withoutContactAndTextTitle != null && (withoutContactAndTextTitle.equals("true") | withoutContactAndTextTitle.equals("false")) && Boolean.parseBoolean(withoutContactAndTextTitle);
 
             String textLang = ctx.queryParam("text-lang");
             if (textLang == null || (textLang.isBlank())) {
@@ -190,16 +182,10 @@ public class SentimentEndPoints {
             doc.setId(id);
 
             switch (textLang.trim()) {
-                case "en":
-                    doc = classifierOneDocEN.call(doc);
-                    break;
-                case "fr":
-                    doc = classifierOneDocFR.call(doc);
-                    break;
+                case "en" -> doc = classifierOneDocEN.call(doc);
+                case "fr" -> doc = classifierOneDocFR.call(doc);
 
-                case "es":
-                    doc = classifierOneDocES.call(doc);
-                    break;
+                case "es" -> doc = classifierOneDocES.call(doc);
             }
             String explanationParam = ctx.queryParam("explanation");
             String langExplanation = ctx.queryParam("explanation-lang");
@@ -211,7 +197,7 @@ public class SentimentEndPoints {
             String contactPointPlain = "Made with https://nocodefunctions.com. Remarks, questions, corrections: analysis@exploreyourdata.com";
 
             switch (outputFormat.trim()) {
-                case "plain": {
+                case "plain" -> {
                     if (explanationParam != null && explanationParam.trim().toLowerCase().equals("on")) {
                         String explanationInPlain = UmigonExplain.getExplanationOfHeuristicResultsPlainText(doc, langExplanation.trim());
                         if (!doc.getDecisions().isEmpty()) {
@@ -224,9 +210,8 @@ public class SentimentEndPoints {
                         ctx.result(sentimentPlainText).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
                     }
                 }
-                break;
 
-                case "html": {
+                case "html" -> {
                     HtmlSettings htmlSettings = new HtmlSettings();
                     String explanationInHtml = UmigonExplain.getExplanationOfHeuristicResultsHtml(doc, langExplanation.trim(), htmlSettings, withoutContactAndTextTitleBoolean);
                     String shortAnswerInHtml = "<p>" + UmigonExplain.getSentimentPlainText(doc.getCategorizationResult(), langExplanation);
@@ -236,9 +221,8 @@ public class SentimentEndPoints {
                         ctx.result(shortAnswerInHtml).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
                     }
                 }
-                break;
 
-                case "bytes": {
+                case "bytes" -> {
                     HtmlSettings htmlSettingsForBytes = new HtmlSettings();
                     String explanationInHtmlForBytes = UmigonExplain.getExplanationOfHeuristicResultsHtml(doc, langExplanation.trim(), htmlSettingsForBytes, withoutContactAndTextTitleBoolean);
                     String explanationInPlainTextForBytes = UmigonExplain.getExplanationOfHeuristicResultsPlainText(doc, langExplanation.trim());
@@ -246,9 +230,8 @@ public class SentimentEndPoints {
                     doc.setExplanationPlainText(explanationInPlainTextForBytes);
                     ctx.result(APIController.byteArraySerializerForDocuments(doc)).status(HttpURLConnection.HTTP_OK);
                 }
-                break;
 
-                case "json": {
+                case "json" -> {
                     if (explanationParam != null && explanationParam.trim().toLowerCase().equals("on")) {
                         jsonAnswer.add("info", contactPointPlain);
                         jsonAnswer.addAll(UmigonExplain.getExplanationOfHeuristicResultsJson(doc, langExplanation.trim()));
@@ -263,9 +246,8 @@ public class SentimentEndPoints {
                         ctx.result(result).status(HttpURLConnection.HTTP_OK).contentType("application/json; charset=utf-8");
                     }
                 }
-                break;
 
-                default: {
+                default -> {
                     jsonAnswer.addAll(UmigonExplain.getExplanationOfHeuristicResultsJson(doc, langExplanation.trim()));
                     if (!doc.getDecisions().isEmpty()) {
                         jsonAnswer.addAll(UmigonExplain.getExplanationsOfDecisionsJsonObject(doc, langExplanation.trim()));

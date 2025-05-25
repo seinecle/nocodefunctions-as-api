@@ -1,5 +1,6 @@
-package net.clementlevallois.nocodefunctionswebservices.workflow.topics;
+package net.clementlevallois.nocodefunctionswebservices.workflow.cowo;
 
+import net.clementlevallois.nocodefunctionswebservices.workflow.topics.*;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
@@ -26,20 +27,43 @@ public class JsonDataSaverTask {
 
     private final Map<Integer, Multiset<String>> keywordsPerTopicMap;
     private final Map<Integer, Multiset<Integer>> topicsPerLineMap;
-    private final Path targetFilePath;
+    private final String gexfContent; // Include GEXF in the JSON output
+    private final Path targetDirectory;
+    private final String dataUniqueId; // Usually dataPersistenceId
 
+    /**
+     * Constructor for the JSON data saving task.
+     *
+     * @param keywordsPerTopicMap Map of keywords per topic.
+     * @param topicsPerLineMap    Map of topics per line.
+     * @param gexfContent         The generated GEXF string.
+     * @param targetDirectory     The directory where the JSON file should be saved.
+     * @param baseFilename        The base name for the file (e.g., dataPersistenceId), "_result.json" will be appended.
+     */
     public JsonDataSaverTask(Map<Integer, Multiset<String>> keywordsPerTopicMap,
                              Map<Integer, Multiset<Integer>> topicsPerLineMap,
-                             Path targetDirectory) {
+                             String gexfContent,
+                             Path targetDirectory,
+                             String baseFilename) {
         this.keywordsPerTopicMap = Objects.requireNonNull(keywordsPerTopicMap, "Keywords map cannot be null");
         this.topicsPerLineMap = Objects.requireNonNull(topicsPerLineMap, "Topics per line map cannot be null");
-        this.targetFilePath = Objects.requireNonNull(targetDirectory, "Target directory cannot be null");
+        this.gexfContent = gexfContent; // Can be null/empty if GEXF wasn't generated/requested
+        this.targetDirectory = Objects.requireNonNull(targetDirectory, "Target directory cannot be null");
+        this.dataUniqueId = Objects.requireNonNull(baseFilename, "Base filename cannot be null");
     }
+
+    /**
+     * Constructs the result JSON and saves it to the specified file.
+     *
+     * @return The absolute path of the saved JSON file as a String.
+     * @throws IOException If an error occurs during JSON construction or file writing.
+     */
     public String saveJsonData() throws IOException {
-        LOGGER.log(Level.INFO, "Attempting to save result JSON to: {0}", targetFilePath.toAbsolutePath());
+        Path jsonPath = targetDirectory.resolve(dataUniqueId + "_result.json");
+        LOGGER.log(Level.INFO, "Attempting to save result JSON to: {0}", jsonPath.toAbsolutePath());
 
         // Build the JSON Object using the helper method
-        JsonObject jsonPayload = buildResultJsonObject(this.keywordsPerTopicMap, this.topicsPerLineMap);
+        JsonObject jsonPayload = buildResultJsonObject(this.keywordsPerTopicMap, this.topicsPerLineMap, this.gexfContent);
 
         // Write the JSON object to a String
         StringWriter sw = new StringWriter();
@@ -49,16 +73,17 @@ public class JsonDataSaverTask {
         String jsonString = sw.toString();
 
         if (jsonString.isBlank()) {
-             LOGGER.log(Level.WARNING, "Constructed JSON string is blank, cannot save file");
+             LOGGER.log(Level.WARNING, "Constructed JSON string is blank, cannot save file for {0}", dataUniqueId);
+             throw new IOException("Cannot save blank JSON result data.");
         }
 
         // Write the JSON String to the file
         try {
-            Files.writeString(targetFilePath, jsonString, StandardCharsets.UTF_8);
-            LOGGER.log(Level.INFO, "Successfully saved result JSON to: {0}", targetFilePath.toAbsolutePath());
-            return targetFilePath.toAbsolutePath().toString();
+            Files.writeString(jsonPath, jsonString, StandardCharsets.UTF_8);
+            LOGGER.log(Level.INFO, "Successfully saved result JSON to: {0}", jsonPath.toAbsolutePath());
+            return jsonPath.toAbsolutePath().toString();
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Failed to write result JSON file: " + targetFilePath.toAbsolutePath(), e);
+            LOGGER.log(Level.SEVERE, "Failed to write result JSON file: " + jsonPath.toAbsolutePath(), e);
             throw e; // Re-throw
         }
     }
@@ -67,7 +92,8 @@ public class JsonDataSaverTask {
      * Helper to build the JSON object containing results
      */
      private JsonObject buildResultJsonObject(Map<Integer, Multiset<String>> keywordsPerTopicMap,
-                                              Map<Integer, Multiset<Integer>> topicsPerLineMap) {
+                                              Map<Integer, Multiset<Integer>> topicsPerLineMap,
+                                              String gexfSemanticNetwork) {
          JsonObjectBuilder globalResults = Json.createObjectBuilder();
          JsonObjectBuilder keywordsBuilder = Json.createObjectBuilder();
          JsonObjectBuilder topicsBuilder = Json.createObjectBuilder();
@@ -100,6 +126,8 @@ public class JsonDataSaverTask {
 
          globalResults.add("keywordsPerTopic", keywordsBuilder);
          globalResults.add("topicsPerLine", topicsBuilder);
+         // Include GEXF directly in the JSON if it was generated
+         globalResults.add("gexf", gexfSemanticNetwork != null ? gexfSemanticNetwork : "");
 
          return globalResults.build();
      }

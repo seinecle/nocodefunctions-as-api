@@ -44,6 +44,7 @@ import net.clementlevallois.nocodefunctionswebservices.spatialize.SpatializeEndP
 import net.clementlevallois.nocodefunctionswebservices.workflow.topics.TopicsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.vvconversion.VosViewerConversionEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.workflow.communityinsights.CommunityInsightsEndPoint;
+import net.clementlevallois.nocodefunctionswebservices.workflow.cowo.WorkflowCowoEndPoint;
 import net.clementlevallois.umigon.classifier.controller.UmigonController;
 import net.clementlevallois.umigon.model.classification.Document;
 import net.clementlevallois.utils.Multiset;
@@ -98,6 +99,7 @@ public class APIController {
         app = OrganicEndPoints.addAll(app);
         app = PdfMatcherEndPoints.addAll(app);
         app = CowoEndPoint.addAll(app);
+        app = WorkflowCowoEndPoint.addAll(app);
         app = LemmatizerLightEndPoint.addAll(app);
         app = TopicsEndPoint.addAll(app);
         app = LLMOpsEndpoints.addAll(app);

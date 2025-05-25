@@ -11,10 +11,8 @@ import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
-import net.clementlevallois.nocodefunctionswebservices.workflow.topics.RunnableTopicsWorkflow;
 
 public class CommunityInsightsEndPoint {
 
