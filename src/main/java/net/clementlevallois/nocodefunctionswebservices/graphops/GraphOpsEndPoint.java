@@ -18,8 +18,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
-import net.clementlevallois.graphops.GetTopNodesFromThickestEdges;
+import net.clementlevallois.functions.model.FunctionSpatialization;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
+import net.clementlevallois.spatialize.controller.SpatializeFunction;
 
 /**
  *
@@ -101,56 +102,80 @@ public class GraphOpsEndPoint {
             ctx.result("OK".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
         });
 
-        app.get("/api/graphops/textualSummaryPerCommunity", new Handler() {
-            @Override
-            public void handle(Context ctx) throws Exception {
-                JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
-                NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
-
-                String dataPersistenceId = ctx.queryParam("dataPersistenceId");
-                Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId + "_result");
-                String gexfAsString = "";
-                try {
-                    gexfAsString = Files.readString(tempDataPath, StandardCharsets.UTF_8);
-                } catch (IOException e) {
-                    objectBuilder.add("-99", "gexf file not readable on disk");
-                    objectBuilder.add("gexf file: ", tempDataPath.toString());
-                    JsonObject jsonObject = objectBuilder.build();
-                    ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
-                    return;
-                }
-                String userSuppliedCommunityFieldName = ctx.queryParam("userSuppliedCommunityFieldName");
-                String maxTextLengthPerCommunity = ctx.queryParam("maxTextLengthPerCommunity");
-                String textualAttribute = ctx.queryParam("textualAttribute");
-                String minCommunitySize = ctx.queryParam("minCommunitySize");
-                String maxTopNodes = ctx.queryParam("maxTopNodes");
-                String callBackURL = ctx.queryParam("callBackURL");
-                Integer maxTextLengthPerCommunityAsInteger;
-                try {
-                    maxTextLengthPerCommunityAsInteger = Integer.valueOf(maxTextLengthPerCommunity);
-                } catch (NumberFormatException e) {
-                    maxTextLengthPerCommunityAsInteger = 500;
-                }
-                Integer minCommunitySizeAsInteger;
-                try {
-                    minCommunitySizeAsInteger = Integer.valueOf(minCommunitySize);
-                } catch (NumberFormatException e) {
-                    minCommunitySizeAsInteger = 20;
-                }
-                Integer maxTopNodesAsInteger;
-                try {
-                    maxTopNodesAsInteger = Integer.valueOf(maxTopNodes);
-                } catch (NumberFormatException e) {
-                    maxTopNodesAsInteger = 50;
-                }
-                var textualSummaryPerCommunity = new RunnableGetTextPerCommunity();
-                textualSummaryPerCommunity.setCallbackURL(callBackURL);
-                textualSummaryPerCommunity.setDataPersistenceId(dataPersistenceId);
-                textualSummaryPerCommunity.setGexfAsString(gexfAsString);
-                textualSummaryPerCommunity.runTextPerCommunityInBackgroundThread(userSuppliedCommunityFieldName, textualAttribute, maxTopNodesAsInteger, minCommunitySizeAsInteger, maxTextLengthPerCommunityAsInteger);
-                ctx.result("OK".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+        app.get("/api/graphops/textualSummaryPerCommunity", (Context ctx) -> {
+            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
+            NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
+            
+            String dataPersistenceId = ctx.queryParam("dataPersistenceId");
+            Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId + "_result");
+            String gexfAsString = "";
+            try {
+                gexfAsString = Files.readString(tempDataPath, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                objectBuilder.add("-99", "gexf file not readable on disk");
+                objectBuilder.add("gexf file: ", tempDataPath.toString());
+                JsonObject jsonObject = objectBuilder.build();
+                ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
+                return;
             }
+            String userSuppliedCommunityFieldName = ctx.queryParam("userSuppliedCommunityFieldName");
+            String maxTextLengthPerCommunity = ctx.queryParam("maxTextLengthPerCommunity");
+            String textualAttribute = ctx.queryParam("textualAttribute");
+            String minCommunitySize = ctx.queryParam("minCommunitySize");
+            String maxTopNodes = ctx.queryParam("maxTopNodes");
+            String callBackURL = ctx.queryParam("callBackURL");
+            Integer maxTextLengthPerCommunityAsInteger;
+            try {
+                maxTextLengthPerCommunityAsInteger = Integer.valueOf(maxTextLengthPerCommunity);
+            } catch (NumberFormatException e) {
+                maxTextLengthPerCommunityAsInteger = 500;
+            }
+            Integer minCommunitySizeAsInteger;
+            try {
+                minCommunitySizeAsInteger = Integer.valueOf(minCommunitySize);
+            } catch (NumberFormatException e) {
+                minCommunitySizeAsInteger = 20;
+            }
+            Integer maxTopNodesAsInteger;
+            try {
+                maxTopNodesAsInteger = Integer.valueOf(maxTopNodes);
+            } catch (NumberFormatException e) {
+                maxTopNodesAsInteger = 50;
+            }
+            var textualSummaryPerCommunity = new RunnableGetTextPerCommunity();
+            textualSummaryPerCommunity.setCallbackURL(callBackURL);
+            textualSummaryPerCommunity.setDataPersistenceId(dataPersistenceId);
+            textualSummaryPerCommunity.setGexfAsString(gexfAsString);
+            textualSummaryPerCommunity.runTextPerCommunityInBackgroundThread(userSuppliedCommunityFieldName, textualAttribute, maxTopNodesAsInteger, minCommunitySizeAsInteger, maxTextLengthPerCommunityAsInteger);
+            ctx.result("OK".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
         });
+        
+        
+        app.post("/api/"+ FunctionSpatialization.ENDPOINT, ctx -> {
+            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
+            NaiveRateLimit.requestPerTimeUnit(ctx, 1, TimeUnit.SECONDS);
+            String durationInSeconds = ctx.queryParam("durationInSeconds");
+            Integer durationLayout;
+            try {
+                durationLayout = Integer.valueOf(durationInSeconds);
+            } catch (NumberFormatException e) {
+                durationLayout = 20;
+            }
+            byte[] bodyAsBytes = ctx.bodyAsBytes();
+            if (bodyAsBytes.length == 0) {
+                objectBuilder.add("-99", "body of the request should not be empty");
+                JsonObject jsonObject = objectBuilder.build();
+                ctx.result(jsonObject.toString()).status(HttpURLConnection.HTTP_BAD_REQUEST);
+            } else {
+                String gexf = new String(bodyAsBytes, StandardCharsets.UTF_8);
+                SpatializeFunction spatializer = new SpatializeFunction();
+                String gexfSpatialized = spatializer.spatialize(gexf, durationLayout);
+
+                ctx.result(gexfSpatialized.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
+            }
+        }
+        );
+
 
         return app;
 

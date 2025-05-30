@@ -12,6 +12,8 @@ import jakarta.json.JsonObjectBuilder;
 import java.net.HttpURLConnection;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import net.clementlevallois.functions.model.Globals;
+import net.clementlevallois.functions.model.FunctionUmigon;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import static net.clementlevallois.nocodefunctionswebservices.APIController.increment;
 import net.clementlevallois.umigon.classifier.controller.UmigonController;
@@ -38,7 +40,7 @@ public class SentimentEndPoints {
 
     public static Javalin addAll(Javalin app) {
 
-        app.get("/api/sentimentForAText", ctx -> {
+        app.get(Globals.API_ENDPOINT_ROOT+ FunctionUmigon.ENDPOINT, ctx -> {
             JsonObjectBuilder jsonAnswer = Json.createObjectBuilder();
 
             String owner = ctx.queryParam("owner");
@@ -71,16 +73,9 @@ public class SentimentEndPoints {
             doc.setId(id);
 
             switch (textLang.trim()) {
-                case "en":
-                    doc = classifierOneDocEN.call(doc);
-                    break;
-                case "fr":
-                    doc = classifierOneDocFR.call(doc);
-                    break;
-
-                case "es":
-                    doc = classifierOneDocES.call(doc);
-                    break;
+                case "en" -> doc = classifierOneDocEN.call(doc);
+                case "fr" -> doc = classifierOneDocFR.call(doc);
+                case "es" -> doc = classifierOneDocES.call(doc);
             }
             String explanationParam = ctx.queryParam("explanation");
             String langExplanation = ctx.queryParam("explanation-lang");
@@ -93,16 +88,16 @@ public class SentimentEndPoints {
 
             switch (outputFormat.trim()) {
                 case "plain" -> {
-                    if (explanationParam != null && explanationParam.trim().toLowerCase().equals("on")) {
+                    if (explanationParam == null || !explanationParam.trim().toLowerCase().equals("on")) {
+                        String sentimentPlainText = doc.getCategoryLocalizedPlainText();
+                        ctx.result(sentimentPlainText).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
+                    } else {
                         String explanationInPlain = UmigonExplain.getExplanationOfHeuristicResultsPlainText(doc, langExplanation.trim());
                         if (!doc.getDecisions().isEmpty()) {
                             explanationInPlain = explanationInPlain + " " + UmigonExplain.getExplanationsOfDecisionsPlainText(doc, langExplanation.trim());
                         }
                         String resultString = "*** " + contactPointPlain + " ***" + "\n\n" + explanationInPlain;
                         ctx.result(resultString).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
-                    } else {
-                        String sentimentPlainText = doc.getCategoryLocalizedPlainText();
-                        ctx.result(sentimentPlainText).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
                     }
                 }
 
@@ -152,7 +147,7 @@ public class SentimentEndPoints {
             }
         });
 
-        app.post("/api/sentimentForAText", ctx -> {
+        app.post(Globals.API_ENDPOINT_ROOT+ FunctionUmigon.ENDPOINT, ctx -> {
             JsonObjectBuilder jsonAnswer = Json.createObjectBuilder();
 
             String owner = ctx.queryParam("owner");

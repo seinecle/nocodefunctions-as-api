@@ -18,6 +18,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import net.clementlevallois.functions.model.Globals;
+import net.clementlevallois.functions.model.FunctionPdfMatcher;
 import net.clementlevallois.functions.model.Occurrence;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import net.clementlevallois.pdfmatcher.controller.PdfMatcher;
@@ -30,7 +32,7 @@ public class PdfMatcherEndPoints {
 
     public static Javalin addAll(Javalin app) throws Exception {
 
-        app.post("/api/pdfmatcher", ctx -> {
+        app.post(Globals.API_ENDPOINT_ROOT+ FunctionPdfMatcher.ENDPOINT, ctx -> {
             JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
             TreeMap<Integer, String> lines = new TreeMap();

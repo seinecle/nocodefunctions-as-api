@@ -8,6 +8,7 @@ package net.clementlevallois.nocodefunctionswebservices;
 import io.javalin.Javalin;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
 import jakarta.json.bind.JsonbBuilder;
 import jakarta.json.bind.JsonbConfig;
 import java.io.ByteArrayOutputStream;
@@ -16,10 +17,19 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.StringWriter;
+import java.net.ConnectException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,16 +41,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.clementlevallois.functions.model.Occurrence;
+import net.clementlevallois.functions.model.WorkflowCowoProps;
 import net.clementlevallois.nocodefunctionswebservices.cowo.CowoEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.sentiment.SentimentEndPoints;
-import net.clementlevallois.nocodefunctionswebservices.gaze.GazeEndPoint;
+import net.clementlevallois.nocodefunctionswebservices.workflow.gaze.GazeEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.graphops.GraphOpsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.lemmatizerlight.LemmatizerLightEndPoint;
 import net.clementlevallois.llm.functions.LLMsOps;
 import net.clementlevallois.nocodefunctionswebservices.llms.LLMOpsEndpoints;
 import net.clementlevallois.nocodefunctionswebservices.organic.OrganicEndPoints;
 import net.clementlevallois.nocodefunctionswebservices.pdfmatcher.PdfMatcherEndPoints;
-import net.clementlevallois.nocodefunctionswebservices.spatialize.SpatializeEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.workflow.topics.TopicsEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.vvconversion.VosViewerConversionEndPoint;
 import net.clementlevallois.nocodefunctionswebservices.workflow.communityinsights.CommunityInsightsEndPoint;
@@ -48,6 +58,7 @@ import net.clementlevallois.nocodefunctionswebservices.workflow.cowo.WorkflowCow
 import net.clementlevallois.umigon.classifier.controller.UmigonController;
 import net.clementlevallois.umigon.model.classification.Document;
 import net.clementlevallois.utils.Multiset;
+import org.openide.util.Exceptions;
 
 /**
  *
@@ -67,11 +78,17 @@ public class APIController {
 
     public static final ExecutorService backgroundExecutor = Executors.newCachedThreadPool();
 
+    private static final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .version(HttpClient.Version.HTTP_2)
+            .build();
+
     public static void main(String[] args) throws Exception {
         start();
     }
 
     private static void start() throws FileNotFoundException, IOException, Exception {
+
         Properties props = new Properties();
         props.load(new FileInputStream("private/props.properties"));
         String port = props.getProperty("port");
@@ -107,7 +124,6 @@ public class APIController {
         app = GraphOpsEndPoint.addAll(app);
         app = GazeEndPoint.addAll(app);
         app = VosViewerConversionEndPoint.addAll(app);
-        app = SpatializeEndPoint.addAll(app);
         addRestartEndPoint();
         Runtime.getRuntime().addShutdownHook(new Thread(APIController::stopExecutorService));
         System.out.println("running the api");
@@ -118,11 +134,9 @@ public class APIController {
         LOGGER.info("Attempting to shut down background executor service...");
         backgroundExecutor.shutdown(); // Disable new tasks from being submitted
         try {
-            // Wait a while for existing tasks to terminate
             if (!backgroundExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
                 LOGGER.warning("Executor did not terminate in 60 seconds, forcing shutdown...");
                 backgroundExecutor.shutdownNow(); // Cancel currently executing tasks
-                // Wait a while for tasks to respond to being cancelled
                 if (!backgroundExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
                     LOGGER.severe("Executor did not terminate even after forced shutdown.");
                 } else {
@@ -158,6 +172,50 @@ public class APIController {
         } catch (IOException e) {
             System.out.println("issue with the api call counter");
             System.out.println(e.getMessage());
+        }
+    }
+
+    public static void sendProgressUpdate(int progress, String message, String callbackURL, String sessionId, String jobId) {
+        if (callbackURL == null || callbackURL.isBlank()) {
+            return;
+        }
+        JsonObjectBuilder joBuilder = Json.createObjectBuilder();
+        joBuilder.add("info", "PROGRESS");
+        joBuilder.add("function", WorkflowCowoProps.NAME);
+        if (sessionId != null) {
+            joBuilder.add("sessionId", sessionId);
+        }
+        joBuilder.add("dataPersistenceId", jobId);
+        joBuilder.add("progress", progress);
+        joBuilder.add("message", message != null ? message : "");
+        sendCallback(joBuilder.build().toString(), callbackURL);
+    }
+
+    private static void sendCallback(String jsonPayload, String callbackURL) {
+        try {
+            URI uri = new URI(callbackURL);
+            HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofString(jsonPayload, StandardCharsets.UTF_8);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .POST(bodyPublisher)
+                    .uri(uri)
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(30))
+                    .build();
+
+            try {
+                HttpResponse<String> resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() >= 300) {
+                    LOGGER.log(Level.WARNING, "Callback POST failed");
+                }
+            } catch (HttpTimeoutException e) {
+                LOGGER.log(Level.WARNING, "Callback POST timed out", e);
+            } catch (ConnectException e) {
+                LOGGER.log(Level.WARNING, "Callback POST connection refused", e);
+            } catch (IOException | InterruptedException ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        } catch (URISyntaxException ex) {
+            Exceptions.printStackTrace(ex);
         }
     }
 

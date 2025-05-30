@@ -21,8 +21,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.StructuredTaskScope;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import net.clementlevallois.functions.model.CommonExpressions;
-import net.clementlevallois.functions.model.CommunityInsightsWorkflow;
+import net.clementlevallois.functions.model.Globals;
+import net.clementlevallois.functions.model.WorkflowCommunityInsightsProps;
 import net.clementlevallois.functions.model.KeyNodesInfo;
 import net.clementlevallois.functions.model.Names;
 import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetKeyNodes;
@@ -101,7 +101,7 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
                     for (Map.Entry<String, String> entry : contextPerCommunity.entrySet()) {
                         joBuilder.add(entry.getKey(), entry.getValue());
                     }
-                    String contextSampleFile = dataPersistenceId + CommunityInsightsWorkflow.CONTEXT_FROM_SAMPLE_FILE_NAME_EXTENSION + CommunityInsightsWorkflow.CONTEXT_FROM_SAMPLE_FILE_EXTENSION;
+                    String contextSampleFile = dataPersistenceId + WorkflowCommunityInsightsProps.CONTEXT_FROM_SAMPLE_FILE_NAME_EXTENSION + WorkflowCommunityInsightsProps.CONTEXT_FROM_SAMPLE_FILE_EXTENSION;
                     Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), contextSampleFile);
                     Files.writeString(tempResultsPath, joBuilder.build().toString(), StandardCharsets.UTF_8);
 
@@ -123,7 +123,7 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
                 keyNodes.setSessionId(sessionId);
                 KeyNodesInfo keyNodesInfo = keyNodes.getKeyNodes(userSuppliedCommunityFieldName, maxTopNodesPerCommunityAsInteger, minCommunitySizeAsInteger);
 
-                String keyNodesFile = dataPersistenceId + CommunityInsightsWorkflow.KEY_NODES_NAME_EXTENSION + CommunityInsightsWorkflow.KEY_NODES_FILE_EXTENSION;
+                String keyNodesFile = dataPersistenceId + WorkflowCommunityInsightsProps.KEY_NODES_NAME_EXTENSION + WorkflowCommunityInsightsProps.KEY_NODES_FILE_EXTENSION;
                 Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), keyNodesFile);
                 Files.writeString(tempResultsPath, keyNodesInfo.toJsonForInsights().toString(), StandardCharsets.UTF_8);
                 statusMessage = "key nodes per community: over";
@@ -136,7 +136,7 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
             String statusMessage = "Workflow completed successfully.";
             overallSuccess = true;
             sendProgressUpdate(100, statusMessage);
-            String workflowCompleteFlagFile = dataPersistenceId + CommonExpressions.WORKFLOW_COMPLETE_FILE_NAME_EXTENSION;
+            String workflowCompleteFlagFile = dataPersistenceId + Globals.WORKFLOW_COMPLETE_FILE_NAME_EXTENSION;
             Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), workflowCompleteFlagFile);
             Files.writeString(tempResultsPath, "community insights workflow is complete", StandardCharsets.UTF_8);
             scope.throwIfFailed();

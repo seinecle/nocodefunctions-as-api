@@ -12,6 +12,8 @@ import jakarta.json.JsonObjectBuilder;
 import java.net.HttpURLConnection;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import net.clementlevallois.functions.model.Globals;
+import net.clementlevallois.functions.model.FunctionOrganic;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import static net.clementlevallois.nocodefunctionswebservices.APIController.increment;
 import net.clementlevallois.umigon.classifier.controller.UmigonController;
@@ -36,7 +38,7 @@ public class OrganicEndPoints {
     
     public static Javalin addAll(Javalin app) {
 
-        app.get("/api/organicForAText", ctx -> {
+        app.get(Globals.API_ENDPOINT_ROOT+ FunctionOrganic.ENDPOINT, ctx -> {
             JsonObjectBuilder jsonAnswer = Json.createObjectBuilder();
 
             String owner = ctx.queryParam("owner");
@@ -47,11 +49,7 @@ public class OrganicEndPoints {
             String text = ctx.queryParam("text");
             String withoutContactAndTextTitle = ctx.queryParam("shorter");
             Boolean withoutContactAndTextTitleBoolean;
-            if (withoutContactAndTextTitle != null && (withoutContactAndTextTitle.equals("true") | withoutContactAndTextTitle.equals("false")) && Boolean.parseBoolean(withoutContactAndTextTitle)) {
-                withoutContactAndTextTitleBoolean = true;
-            } else {
-                withoutContactAndTextTitleBoolean = false;
-            }
+            withoutContactAndTextTitleBoolean = withoutContactAndTextTitle != null && (withoutContactAndTextTitle.equals("true") | withoutContactAndTextTitle.equals("false")) && Boolean.parseBoolean(withoutContactAndTextTitle);
 
             String textLang = ctx.queryParam("text-lang");
             if (textLang == null || (textLang.isBlank())) {
@@ -73,12 +71,8 @@ public class OrganicEndPoints {
             doc.setId(id);
 
             switch (textLang.trim()) {
-                case "en":
-                    doc = classifierOneDocEN.call(doc);
-                    break;
-                case "fr":
-                    doc = classifierOneDocFR.call(doc);
-                    break;
+                case "en" -> doc = classifierOneDocEN.call(doc);
+                case "fr" -> doc = classifierOneDocFR.call(doc);
             }
             String explanationParam = ctx.queryParam("explanation");
             String langExplanation = ctx.queryParam("explanation-lang");
@@ -90,8 +84,7 @@ public class OrganicEndPoints {
             String contactPointPlain = "Made with https://nocodefunctions.com. Remarks, questions, corrections: analysis@exploreyourdata.com";
 
             switch (outputFormat.trim()) {
-                case "plain":
-                {
+                case "plain" -> {
                     if (explanationParam != null && explanationParam.trim().toLowerCase().equals("on")) {
                         String explanationInPlain = UmigonExplain.getExplanationOfHeuristicOrganicResultsPlainText(doc, langExplanation.trim());
                         if (!doc.getDecisions().isEmpty()) {
@@ -104,9 +97,8 @@ public class OrganicEndPoints {
                         ctx.result(sentimentPlainText).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
                     }
                 }
-                break;
 
-                case "html": {
+                case "html" -> {
                     HtmlSettings htmlSettings = new HtmlSettings();
                     String explanationInHtml = UmigonExplain.getExplanationOfHeuristicOrganicResultsHtml(doc, langExplanation.trim(), htmlSettings, withoutContactAndTextTitleBoolean);
                     String shortAnswerInHtml = "<p>" + UmigonExplain.getOrganicPlainText(doc.getCategorizationResult(), langExplanation);
@@ -116,9 +108,8 @@ public class OrganicEndPoints {
                         ctx.result(shortAnswerInHtml).status(HttpURLConnection.HTTP_OK).contentType("text/html; charset=utf-8");
                     }
                 }
-                break;
 
-                case "bytes": {
+                case "bytes" -> {
                     HtmlSettings htmlSettingsForBytes = new HtmlSettings();
                     String explanationInHtmlForBytes = UmigonExplain.getExplanationOfHeuristicOrganicResultsHtml(doc, langExplanation.trim(), htmlSettingsForBytes, withoutContactAndTextTitleBoolean);
                     String explanationInPlainTextForBytes = UmigonExplain.getExplanationOfHeuristicOrganicResultsPlainText(doc, langExplanation.trim());
@@ -126,9 +117,8 @@ public class OrganicEndPoints {
                     doc.setExplanationPlainText(explanationInPlainTextForBytes);
                     ctx.result(APIController.byteArraySerializerForDocuments(doc)).status(HttpURLConnection.HTTP_OK);
                 }
-                break;
 
-                case "json": {
+                case "json" -> {
                     if (explanationParam != null && explanationParam.trim().toLowerCase().equals("on")) {
                         jsonAnswer.add("info", contactPointPlain);
                         jsonAnswer.addAll(UmigonExplain.getExplanationOfHeuristicResultsJson(doc, langExplanation.trim()));
@@ -143,9 +133,8 @@ public class OrganicEndPoints {
                         ctx.result(result).status(HttpURLConnection.HTTP_OK).contentType("application/json; charset=utf-8");
                     }
                 }
-                break;
 
-                default: {
+                default -> {
                     jsonAnswer.addAll(UmigonExplain.getExplanationOfHeuristicResultsJson(doc, langExplanation.trim()));
                     if (!doc.getDecisions().isEmpty()) {
                         jsonAnswer.addAll(UmigonExplain.getExplanationsOfDecisionsJsonObject(doc, langExplanation.trim()));
@@ -155,7 +144,7 @@ public class OrganicEndPoints {
             }
         });
 
-        app.post("/api/organicForAText", ctx -> {
+        app.post(Globals.API_ENDPOINT_ROOT+ FunctionOrganic.ENDPOINT, ctx -> {
             JsonObjectBuilder jsonAnswer = Json.createObjectBuilder();
 
             String owner = ctx.queryParam("owner");

@@ -16,27 +16,32 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import net.clementlevallois.functions.model.Globals;
+import net.clementlevallois.functions.model.Globals.GlobalQueryParams;
+import net.clementlevallois.functions.model.WorkflowTopicsProps;
+import net.clementlevallois.functions.model.WorkflowTopicsProps.BodyJsonKeys;
+import net.clementlevallois.functions.model.WorkflowTopicsProps.QueryParams; // Import the enum
 
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 
 public class TopicsEndPoint {
 
     public static Javalin addAll(Javalin app) {
-        app.post("/api/workflow/topics", ctx -> {
+        app.post(Globals.API_ENDPOINT_ROOT + WorkflowTopicsProps.ENDPOINT, ctx -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
 
             String body = ctx.body();
             if (body.isBlank()) {
                 ctx.status(HttpURLConnection.HTTP_BAD_REQUEST)
-                   .result(Json.createObjectBuilder()
-                               .add("-99", "topics endpoint: body of the request should not be empty")
-                               .build()
-                               .toString());
+                        .result(Json.createObjectBuilder()
+                                .add("-99", "topics endpoint: body of the request should not be empty")
+                                .build()
+                                .toString());
                 return;
             }
 
-            RunnableTopicsWorkflow workflow = parseRequest(body);
-            workflow = parseParams(workflow, ctx);
+            RunnableTopicsWorkflow workflow = parseBody(body);
+            workflow = parseQueryParams(workflow, ctx);
             workflow.setRequestedFormats(Set.of("gexf", "json"));
             workflow.run();
             ctx.status(HttpURLConnection.HTTP_OK).result("ok");
@@ -44,66 +49,63 @@ public class TopicsEndPoint {
 
         return app;
     }
-    
-        private static RunnableTopicsWorkflow parseParams(RunnableTopicsWorkflow workflow, Context ctx) throws Exception {
+
+    private static RunnableTopicsWorkflow parseQueryParams(RunnableTopicsWorkflow workflow, Context ctx) throws Exception {
 
         for (var entry : ctx.queryParamMap().entrySet()) {
             String key = entry.getKey();
             String decodedParamValue = URLDecoder.decode(entry.getValue().getFirst(), StandardCharsets.UTF_8);
-            switch (key) {
-                case "dataPersistenceId" ->
-                    handleDataPersistence(workflow, decodedParamValue);
-                case "lang" ->
-                    workflow.setLang(entry.getValue().getFirst());
-                case "precision" -> workflow.setPrecision(Integer.parseInt(decodedParamValue));
-                case "minTermFreq" ->
+
+            switch (QueryParams.valueOf(key.toUpperCase())) { // Convert key to uppercase to match enum names
+                case LANG ->
+                    workflow.setLang(decodedParamValue);
+                case PRECISION ->
+                    workflow.setPrecision(Integer.parseInt(decodedParamValue));
+                case MIN_TERM_FREQ ->
                     workflow.setMinTermFreq(Integer.parseInt(decodedParamValue));
-                case "minCharNumber" ->
+                case MIN_CHAR_NUMBER ->
                     workflow.setMinCharNumber(Integer.parseInt(decodedParamValue));
-                case "replaceStopwords" ->
+                case REPLACE_STOPWORDS ->
                     workflow.setReplaceStopwords(Boolean.parseBoolean(decodedParamValue));
-                case "removeAccents" ->
+                case REMOVE_ACCENTS ->
                     workflow.setRemoveAccents(Boolean.parseBoolean(decodedParamValue));
-                case "lemmatize" ->
+                case LEMMATIZE ->
                     workflow.setLemmatize(Boolean.parseBoolean(decodedParamValue));
-                case "isScientificCorpus" ->
+                case IS_SCIENTIFIC_CORPUS ->
                     workflow.setIsScientificCorpus(Boolean.parseBoolean(decodedParamValue));
-                case "sessionId" ->
+            }
+
+            switch (GlobalQueryParams.valueOf(key.toUpperCase())) {
+                case SESSION_ID ->
                     workflow.setSessionId(decodedParamValue);
-                case "callbackURL" ->
+                case CALLBACK_URL ->
                     workflow.setCallbackURL(decodedParamValue);
-                default -> {
-                    System.out.println("json key received in topics workflow api endpoint not recognized: " + key);
-                }
+                case JOB_ID ->
+                    handleDataPersistence(workflow, decodedParamValue);
             }
         }
         return workflow;
     }
 
-
-    private static RunnableTopicsWorkflow parseRequest(String body) throws Exception {
+    private static RunnableTopicsWorkflow parseBody(String body) throws Exception {
         RunnableTopicsWorkflow workflow = new RunnableTopicsWorkflow();
         JsonReader reader = Json.createReader(new StringReader(body));
         JsonObject json = reader.readObject();
-
         for (var entry : json.entrySet()) {
             String key = entry.getKey();
-            switch (key) {
-                case "userSuppliedStopwords" -> {
+            switch (BodyJsonKeys.valueOf(key.toUpperCase())) {
+                case USER_SUPPLIED_STOPWORDS -> {
                     json.getJsonObject(key).values()
-                        .forEach(v -> workflow.getUserSuppliedStopwords().add(v.toString().replace("\"", "")));
-                }
-                default -> {
-                    System.out.println("json key received in topics workflow api endpoint not recognized");
+                            .forEach(v -> workflow.getUserSuppliedStopwords().add(v.toString().replace("\"", "")));
                 }
             }
         }
         return workflow;
     }
 
-    private static void handleDataPersistence(RunnableTopicsWorkflow workflow, String dataPersistenceId) throws Exception {
-        workflow.setDataPersistenceId(dataPersistenceId);
-        Path inputFile = APIController.tempFilesFolder.resolve(dataPersistenceId).resolve(dataPersistenceId);
+    private static void handleDataPersistence(RunnableTopicsWorkflow workflow, String jobId) throws Exception {
+        workflow.setJobId(jobId);
+        Path inputFile = APIController.tempFilesFolder.resolve(jobId).resolve(jobId);
         if (Files.exists(inputFile) && !Files.isDirectory(inputFile)) {
             List<String> lines = Files.readAllLines(inputFile, StandardCharsets.UTF_8);
             for (int i = 0; i < lines.size(); i++) {

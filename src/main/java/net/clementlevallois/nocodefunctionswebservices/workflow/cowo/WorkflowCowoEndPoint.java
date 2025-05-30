@@ -15,13 +15,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import net.clementlevallois.functions.model.Globals;
+import net.clementlevallois.functions.model.WorkflowCowoProps;
 
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 
 public class WorkflowCowoEndPoint {
 
     public static Javalin addAll(Javalin app) {
-        app.post("/api/workflow/cowo", ctx -> {
+        app.post(Globals.API_ENDPOINT_ROOT + WorkflowCowoProps.ENDPOINT, ctx -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
 
             String body = ctx.body();
@@ -102,7 +104,7 @@ public class WorkflowCowoEndPoint {
     }
 
     private static void handleDataPersistence(RunnableCowoWorkflow workflow, String dataPersistenceId) throws Exception {
-        workflow.setDataPersistenceId(dataPersistenceId);
+        workflow.setJobId(dataPersistenceId);
         Path inputFile = APIController.tempFilesFolder.resolve(dataPersistenceId).resolve(dataPersistenceId);
         if (Files.exists(inputFile) && !Files.isDirectory(inputFile)) {
             List<String> lines = Files.readAllLines(inputFile, StandardCharsets.UTF_8);

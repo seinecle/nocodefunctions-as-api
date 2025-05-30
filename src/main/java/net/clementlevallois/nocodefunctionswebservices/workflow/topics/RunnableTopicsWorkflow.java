@@ -23,7 +23,7 @@ import java.util.*;
 import java.util.concurrent.StructuredTaskScope;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import net.clementlevallois.functions.model.WorkflowTopicsProperties;
+import net.clementlevallois.functions.model.WorkflowTopicsProps;
 import org.openide.util.Exceptions;
 
 
@@ -42,12 +42,12 @@ public class RunnableTopicsWorkflow implements Runnable {
     private boolean removeAccents;
     private boolean isScientificCorpus;
     private boolean lemmatize;
-    private String dataPersistenceId;
+    private String jobId;
     private int precision;
     private Set<String> requestedFormats;
 
     private final HttpClient httpClient;
-    private WorkflowTopicsProperties props;
+    private WorkflowTopicsProps props;
 
     public RunnableTopicsWorkflow() {
         this.httpClient = HttpClient.newBuilder()
@@ -63,9 +63,9 @@ public class RunnableTopicsWorkflow implements Runnable {
         boolean overallSuccess = false;
         boolean jsonStepFailed = false;
         String statusMessage = "Workflow processing started.";
-        this.props = new WorkflowTopicsProperties(APIController.tempFilesFolder);
+        this.props = new WorkflowTopicsProps(APIController.tempFilesFolder);
 
-        LOGGER.log(Level.INFO, "Starting workflow run for id: {0}", dataPersistenceId);
+        LOGGER.log(Level.INFO, "Starting workflow run for id: {0}", jobId);
 
         try {
             // --- Step 1: Topic Detection ---
@@ -74,7 +74,7 @@ public class RunnableTopicsWorkflow implements Runnable {
 
             TopicDetectionFunction topicsFunction = new TopicDetectionFunction();
             topicsFunction.setRemoveAccents(removeAccents);
-            topicsFunction.setSessionIdAndCallbackURL(sessionId, callbackURL, dataPersistenceId);
+            topicsFunction.setSessionIdAndCallbackURL(sessionId, callbackURL, jobId);
             topicsFunction.analyze(lines, lang, userSuppliedStopwords, replaceStopwords, isScientificCorpus, precision, 4, minCharNumber, minTermFreq, lemmatize);
 
             final Map<Integer, Multiset<String>> keywordsPerTopicMap = topicsFunction.getTopicsNumberToKeyTerms();
@@ -94,14 +94,14 @@ public class RunnableTopicsWorkflow implements Runnable {
 
                 if (requestedFormats.contains("gexf")) {
                     scope.fork(() -> {
-                        saveGexfFile(gexfSemanticNetwork, props.getGexfFilePath(dataPersistenceId));
+                        saveGexfFile(gexfSemanticNetwork, props.getGexfFilePath(jobId));
                         return null;
                     });
                 }
 
                 if (requestedFormats.contains("json")) {
                     scope.fork(() -> {
-                        saveJsonFile(keywordsPerTopicMap, topicsPerLineMap, props.getGlobalResultsJsonFilePath(dataPersistenceId));
+                        saveJsonFile(keywordsPerTopicMap, topicsPerLineMap, props.getGlobalResultsJsonFilePath(jobId));
                         return null;
                     });
                 }
@@ -109,7 +109,7 @@ public class RunnableTopicsWorkflow implements Runnable {
                 scope.join();
                 scope.throwIfFailed();
             } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Error during saving files in workflow for " + dataPersistenceId, e);
+                LOGGER.log(Level.SEVERE, "Error during saving files in workflow for " + jobId, e);
                 jsonStepFailed = true;
             }
 
@@ -124,7 +124,7 @@ public class RunnableTopicsWorkflow implements Runnable {
             sendProgressUpdate(100, statusMessage);
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Workflow failed critically for " + dataPersistenceId, e);
+            LOGGER.log(Level.SEVERE, "Workflow failed critically for " + jobId, e);
             statusMessage = "Workflow failed: " + e.getMessage();
             overallSuccess = false;
             try {
@@ -135,21 +135,21 @@ public class RunnableTopicsWorkflow implements Runnable {
             // --- Step 5: Send Final Callback ---
             try {
                 sendFinalCallback(overallSuccess, statusMessage);
-                Files.writeString(props.getTopicsWorkflowCompleteFilePath(dataPersistenceId), "job finished");
+                Files.writeString(props.getWorkflowCompleteFilePath(jobId), "job finished");
             } catch (IOException | InterruptedException | URISyntaxException e) {
-                LOGGER.log(Level.SEVERE, "Failed to send final callback for " + dataPersistenceId, e);
+                LOGGER.log(Level.SEVERE, "Failed to send final callback for " + jobId, e);
             }
 
             // --- Step 6: Cleanup Input Data File ---
             try {
-                if (Files.deleteIfExists(props.getOriginalTextInputFilePath(dataPersistenceId))) {
+                if (Files.deleteIfExists(props.getOriginalTextInputFilePath(jobId))) {
                     LOGGER.log(Level.INFO, "Deleted temporary input file");
                 }
             } catch (IOException e) {
-                LOGGER.log(Level.WARNING, "Could not delete temporary input file: " + dataPersistenceId, e);
+                LOGGER.log(Level.WARNING, "Could not delete temporary input file: " + jobId, e);
             }
 
-            LOGGER.log(Level.INFO, "Finished workflow run for id: {0} with success={1}", new Object[]{dataPersistenceId, overallSuccess});
+            LOGGER.log(Level.INFO, "Finished workflow run for id: {0} with success={1}", new Object[]{jobId, overallSuccess});
         }
     }
 
@@ -190,12 +190,12 @@ public class RunnableTopicsWorkflow implements Runnable {
             if (sessionId != null) {
                 joBuilder.add("sessionId", sessionId);
             }
-            joBuilder.add("dataPersistenceId", dataPersistenceId);
+            joBuilder.add("dataPersistenceId", jobId);
             joBuilder.add("progress", progress);
             joBuilder.add("message", message != null ? message : "");
             sendCallback(joBuilder.build().toString());
         } catch (IOException | InterruptedException | URISyntaxException e) {
-            LOGGER.log(Level.WARNING, "Failed to send progress update for " + dataPersistenceId, e);
+            LOGGER.log(Level.WARNING, "Failed to send progress update for " + jobId, e);
         }
     }
 
@@ -204,7 +204,7 @@ public class RunnableTopicsWorkflow implements Runnable {
      */
     private void sendFinalCallback(boolean success, String message) throws IOException, URISyntaxException, InterruptedException {
         if (callbackURL == null || callbackURL.isBlank()) {
-            LOGGER.log(Level.WARNING, "No callback URL configured. Final status cannot be sent for {0}", dataPersistenceId);
+            LOGGER.log(Level.WARNING, "No callback URL configured. Final status cannot be sent for {0}", jobId);
             return;
         }
         JsonObjectBuilder joBuilder = Json.createObjectBuilder();
@@ -213,7 +213,7 @@ public class RunnableTopicsWorkflow implements Runnable {
         if (sessionId != null) {
             joBuilder.add("sessionId", sessionId);
         }
-        joBuilder.add("dataPersistenceId", dataPersistenceId);
+        joBuilder.add("dataPersistenceId", jobId);
         joBuilder.add("message", message != null ? message : "");
         sendCallback(joBuilder.build().toString());
     }
@@ -233,23 +233,24 @@ public class RunnableTopicsWorkflow implements Runnable {
                 .build();
 
         LOGGER.log(Level.INFO, "Sending callback to {0} for {1}: Payload size={2} chars",
-                new Object[]{callbackURL, dataPersistenceId, jsonPayload.length()});
+                new Object[]{callbackURL, jobId, jsonPayload.length()});
 
         try {
             HttpResponse<String> resp = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() >= 300) {
                 LOGGER.log(Level.WARNING, "Callback POST failed for {0}. Status: {1}, Response: {2}",
-                        new Object[]{dataPersistenceId, resp.statusCode(), resp.body()});
+                        new Object[]{jobId, resp.statusCode(), resp.body()});
             } else {
-                LOGGER.log(Level.INFO, "Callback POST successful for {0}. Status: {1}", new Object[]{dataPersistenceId, resp.statusCode()});
+                LOGGER.log(Level.INFO, "Callback POST successful for {0}. Status: {1}", new Object[]{jobId, resp.statusCode()});
             }
         } catch (HttpTimeoutException e) {
-            LOGGER.log(Level.WARNING, "Callback POST timed out for " + dataPersistenceId, e);
+            LOGGER.log(Level.WARNING, "Callback POST timed out for " + jobId, e);
             throw new IOException("Callback timed out", e); // Propagate as IOException
         } catch (ConnectException e) {
-            LOGGER.log(Level.WARNING, "Callback POST connection refused for " + dataPersistenceId, e);
+            LOGGER.log(Level.WARNING, "Callback POST connection refused for " + jobId, e);
             throw new IOException("Callback connection refused", e); // Propagate
         }
+        // Allow other IOExceptions / InterruptedExceptions to propagate
         // Allow other IOExceptions / InterruptedExceptions to propagate
     }
 
@@ -293,8 +294,8 @@ public class RunnableTopicsWorkflow implements Runnable {
         this.lemmatize = lemmatize;
     }
 
-    public void setDataPersistenceId(String dataPersistenceId) {
-        this.dataPersistenceId = dataPersistenceId;
+    public void setJobId(String jobId) {
+        this.jobId = jobId;
     }
 
     public void setRequestedFormats(Set<String> requestedFormats) {
@@ -317,8 +318,8 @@ public class RunnableTopicsWorkflow implements Runnable {
         return userSuppliedStopwords;
     }
 
-    public String getDataPersistenceId() {
-        return dataPersistenceId;
+    public String getJobId() {
+        return jobId;
     }
 
 }

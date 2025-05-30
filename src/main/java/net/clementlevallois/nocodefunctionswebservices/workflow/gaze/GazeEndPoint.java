@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package net.clementlevallois.nocodefunctionswebservices.gaze;
+package net.clementlevallois.nocodefunctionswebservices.workflow.gaze;
 
 import io.javalin.Javalin;
 import io.javalin.http.Context;
@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import net.clementlevallois.functions.model.Globals;
+import net.clementlevallois.functions.model.WorkflowGazeProps;
 import net.clementlevallois.utils.Multiset;
 
 /**
@@ -33,7 +35,7 @@ public class GazeEndPoint {
 
     public static Javalin addAll(Javalin app) throws Exception {
 
-        app.post("/api/gaze/cooc", (Context ctx) -> {
+        app.post(Globals.API_ENDPOINT_ROOT + WorkflowGazeProps.ENDPOINT_COOC, (Context ctx) -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
             byte[] bodyAsBytes = ctx.bodyAsBytes();
             String body = new String(bodyAsBytes, StandardCharsets.UTF_8);
@@ -71,7 +73,7 @@ public class GazeEndPoint {
                     }
                     if (nextKey.equals("dataPersistenceId")) {
                         String dataPersistenceId = jsonObject.getString(nextKey);
-                        gazeRunnable.setDataPersistenceId(dataPersistenceId);
+                        gazeRunnable.setJobId(dataPersistenceId);
                     }
 
                 }
@@ -80,7 +82,7 @@ public class GazeEndPoint {
             }
         });
 
-        app.post("/api/gaze/sim", ctx -> {
+        app.post(Globals.API_ENDPOINT_ROOT + WorkflowGazeProps.ENDPOINT_SIM, ctx -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
             byte[] bodyAsBytes = ctx.bodyAsBytes();
 

@@ -12,12 +12,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+import net.clementlevallois.functions.model.Globals;
+import net.clementlevallois.functions.model.WorkflowCommunityInsightsProps;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 
 public class CommunityInsightsEndPoint {
 
     public static Javalin addAll(Javalin app) {
-        app.post("/api/workflow/community-insights", ctx -> {
+        app.post(Globals.API_ENDPOINT_ROOT + WorkflowCommunityInsightsProps.ENDPOINT, ctx -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
 
             String body = ctx.body();
@@ -61,9 +63,9 @@ public class CommunityInsightsEndPoint {
                 case "minCommunitySize" ->
                     workflow.setMinCommunitySizeAsInteger(json.getInt(key, 10));
                 case "userSuppliedCommunityFieldName" ->
-                    workflow.setUserSuppliedCommunityFieldName(json.getString(key,""));
+                    workflow.setUserSuppliedCommunityFieldName(json.getString(key, ""));
                 case "textualAttribute" ->
-                    workflow.setTextualAttribute(json.getString(key,""));
+                    workflow.setTextualAttribute(json.getString(key, ""));
                 case "sessionId" ->
                     workflow.setSessionId(json.getString(key));
                 case "callbackURL" ->
@@ -83,7 +85,7 @@ public class CommunityInsightsEndPoint {
             String gexf = Files.readString(inputFile, StandardCharsets.UTF_8);
             workflow.setGexf(gexf);
             Files.deleteIfExists(inputFile);
-        } else{
+        } else {
             System.out.println("gexf file not found");
         }
     }

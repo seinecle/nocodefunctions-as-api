@@ -22,8 +22,8 @@ import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.clementlevallois.cowo.controller.CowoFunction;
-import net.clementlevallois.functions.model.CommonExpressions;
-import net.clementlevallois.functions.model.WorkflowCowoProperties;
+import net.clementlevallois.functions.model.Globals;
+import net.clementlevallois.functions.model.WorkflowCowoProps;
 import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetTopNodesFromGraph;
 import org.openide.util.Exceptions;
 
@@ -50,19 +50,16 @@ public class RunnableCowoWorkflow implements Runnable {
     private int maxNGram;
     private int minCoocFreq;
     private boolean lemmatize;
-    private String dataPersistenceId;
+    private String jobId;
 
-    private final HttpClient httpClient;
-    private final WorkflowCowoProperties functionProps;
+    private final WorkflowCowoProps functionProps;
+    private final Globals globals;
 
     public RunnableCowoWorkflow() {
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .version(HttpClient.Version.HTTP_2)
-                .build();
         this.lines = new TreeMap();
         this.userSuppliedStopwords = new HashSet();
-        this.functionProps = new WorkflowCowoProperties(APIController.tempFilesFolder);
+        this.functionProps = new WorkflowCowoProps(APIController.tempFilesFolder);
+        this.globals = new Globals(APIController.tempFilesFolder);
     }
 
     @Override
@@ -70,133 +67,59 @@ public class RunnableCowoWorkflow implements Runnable {
         boolean overallSuccess = false;
         String statusMessage = "Cowo workflow processing started.";
 
-        LOGGER.log(Level.INFO, "Starting workflow run for id: {0}", dataPersistenceId);
+        LOGGER.log(Level.INFO, "Starting workflow run for id: {0}", jobId);
 
         try {
             // --- Step 1: Cowo Function ---
             statusMessage = "Starting cowo...";
-            sendProgressUpdate(10, statusMessage);
+            APIController.sendProgressUpdate(10, statusMessage, callbackURL, sessionId, jobId);
             CowoFunction cowoFunction = new CowoFunction();
             cowoFunction.setFlattenToAScii(removeAccents);
-            cowoFunction.setSessionIdAndCallbackURL(sessionId, callbackURL, dataPersistenceId);
+            cowoFunction.setSessionIdAndCallbackURL(sessionId, callbackURL, jobId);
             String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, firstNames, removeAccents, minCoocFreq, minTermFreq, typeCorrection, maxNGram, lemmatize);
-            Path tempResultsPath = functionProps.getGexfFilePath(dataPersistenceId);
+            Path tempResultsPath = functionProps.getGexfFilePath(jobId);
             Files.writeString(tempResultsPath, gexf, StandardCharsets.UTF_8);
             statusMessage = "Cowo function completed";
-            sendProgressUpdate(50, statusMessage);
+            APIController.sendProgressUpdate(50, statusMessage, callbackURL, sessionId, jobId);
 
             // --- Step 2 : detect top nodes and saving the corresponding json files ---
             RunnableGetTopNodesFromGraph getTopNodes = new RunnableGetTopNodesFromGraph();
             getTopNodes.setCallbackURL(callbackURL);
-            getTopNodes.setDataPersistenceId(dataPersistenceId);
+            getTopNodes.setDataPersistenceId(jobId);
             getTopNodes.setGexfAsString(gexf);
             getTopNodes.setSessionId(sessionId);
 
             String topNodes = getTopNodes.getTopNodes(30);
-            tempResultsPath = functionProps.getTopNetworkFilePath(dataPersistenceId);
+            tempResultsPath = globals.getTopNetworkVivaGraphFormattedFilePath(jobId);
             Files.writeString(tempResultsPath, topNodes, StandardCharsets.UTF_8);
 
             statusMessage = "Cowo workflow completed successfully.";
             overallSuccess = true;
-            sendProgressUpdate(100, statusMessage);
+            APIController.sendProgressUpdate(100, statusMessage, callbackURL, sessionId, jobId);
 
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Workflow failed critically for " + dataPersistenceId, e);
+            LOGGER.log(Level.SEVERE, "Workflow failed critically for " + jobId, e);
             statusMessage = "Workflow failed: " + e.getMessage();
             overallSuccess = false;
             try {
-                sendProgressUpdate(100, statusMessage);
+                APIController.sendProgressUpdate(100, statusMessage, callbackURL, sessionId, jobId);
             } catch (Exception ignored) {
             }
         } finally {
             // --- Step 5: Send Final Callback ---
-            sendFinalCallback(overallSuccess, statusMessage);
+            APIController.sendProgressUpdate(100, statusMessage, callbackURL, sessionId, jobId);
 
             // --- Step 6: Cleanup Input Data File ---
             try {
-                Path inputPath = functionProps.getOriginalTextInputFilePath(dataPersistenceId);
+                Path inputPath = functionProps.getOriginalTextInputFilePath(jobId);
                 if (Files.deleteIfExists(inputPath)) {
                     LOGGER.log(Level.INFO, "Deleted temporary input file: {0}", inputPath.toString());
                 }
             } catch (IOException e) {
-                LOGGER.log(Level.WARNING, "Could not delete temporary input file: " + dataPersistenceId, e);
+                LOGGER.log(Level.WARNING, "Could not delete temporary input file: " + jobId, e);
             }
 
-            LOGGER.log(Level.INFO, "Finished workflow run for id: {0} with success={1}", new Object[]{dataPersistenceId, overallSuccess});
-        }
-    }
-
-    private void sendProgressUpdate(int progress, String message) {
-        if (callbackURL == null || callbackURL.isBlank()) {
-            return;
-        }
-        JsonObjectBuilder joBuilder = Json.createObjectBuilder();
-        joBuilder.add("info", "PROGRESS");
-        joBuilder.add("function", WorkflowCowoProperties.NAME);
-        if (sessionId != null) {
-            joBuilder.add("sessionId", sessionId);
-        }
-        joBuilder.add("dataPersistenceId", dataPersistenceId);
-        joBuilder.add("progress", progress);
-        joBuilder.add("message", message != null ? message : "");
-        sendCallback(joBuilder.build().toString());
-    }
-
-    /**
-     * Sends the final success or failure callback including result paths
-     */
-    private void sendFinalCallback(boolean success, String message) {
-        if (callbackURL == null || callbackURL.isBlank()) {
-            LOGGER.log(Level.WARNING, "No callback URL configured. Final status cannot be sent for {0}", dataPersistenceId);
-            return;
-        }
-        JsonObjectBuilder joBuilder = Json.createObjectBuilder();
-        joBuilder.add("info", success ? "WORKFLOW_COMPLETED" : "FAILED");
-        joBuilder.add("function", WorkflowCowoProperties.NAME);
-        if (sessionId != null) {
-            joBuilder.add("sessionId", sessionId);
-        }
-        joBuilder.add("dataPersistenceId", dataPersistenceId);
-        joBuilder.add("progress", 100);
-        joBuilder.add("message", message != null ? message : "");
-        sendCallback(joBuilder.build().toString());
-    }
-
-    /**
-     * Generic method to send a JSON payload as a POST request to the callback
-     * URL
-     */
-    private void sendCallback(String jsonPayload) {
-        try {
-            URI uri = new URI(callbackURL);
-            HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofString(jsonPayload, StandardCharsets.UTF_8);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .POST(bodyPublisher)
-                    .uri(uri)
-                    .header("Content-Type", "application/json")
-                    .timeout(Duration.ofSeconds(30))
-                    .build();
-            
-            LOGGER.log(Level.INFO, "Sending callback to {0} for {1}: Payload size={2} chars",
-                    new Object[]{callbackURL, dataPersistenceId, jsonPayload.length()});
-            
-            try {
-                HttpResponse<String> resp = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                if (resp.statusCode() >= 300) {
-                    LOGGER.log(Level.WARNING, "Callback POST failed for {0}. Status: {1}, Response: {2}",
-                            new Object[]{dataPersistenceId, resp.statusCode(), resp.body()});
-                } else {
-                    LOGGER.log(Level.INFO, "Callback POST successful for {0}. Status: {1}", new Object[]{dataPersistenceId, resp.statusCode()});
-                }
-            } catch (HttpTimeoutException e) {
-                LOGGER.log(Level.WARNING, "Callback POST timed out for " + dataPersistenceId, e);
-            } catch (ConnectException e) {
-                LOGGER.log(Level.WARNING, "Callback POST connection refused for " + dataPersistenceId, e);
-            } catch (IOException | InterruptedException ex) {
-                Exceptions.printStackTrace(ex);
-            }
-        } catch (URISyntaxException ex) {
-            Exceptions.printStackTrace(ex);
+            LOGGER.log(Level.INFO, "Finished workflow run for id: {0} with success={1}", new Object[]{jobId, overallSuccess});
         }
     }
 
@@ -252,8 +175,8 @@ public class RunnableCowoWorkflow implements Runnable {
         this.lemmatize = lemmatize;
     }
 
-    public void setDataPersistenceId(String dataPersistenceId) {
-        this.dataPersistenceId = dataPersistenceId;
+    public void setJobId(String jobId) {
+        this.jobId = jobId;
     }
 
     public void setLines(TreeMap<Integer, String> lines) {
@@ -272,7 +195,8 @@ public class RunnableCowoWorkflow implements Runnable {
         return userSuppliedStopwords;
     }
 
-    public String getDataPersistenceId() {
-        return dataPersistenceId;
+    public String getJobId() {
+        return jobId;
     }
+
 }
