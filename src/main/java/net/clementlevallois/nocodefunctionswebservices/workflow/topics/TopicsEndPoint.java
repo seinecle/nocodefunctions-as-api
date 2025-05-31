@@ -6,7 +6,7 @@ import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
-
+import java.io.IOException;
 import java.io.StringReader;
 import java.net.HttpURLConnection;
 import java.net.URLDecoder;
@@ -16,13 +16,15 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import net.clementlevallois.functions.model.Globals;
 import net.clementlevallois.functions.model.Globals.GlobalQueryParams;
 import net.clementlevallois.functions.model.WorkflowTopicsProps;
 import net.clementlevallois.functions.model.WorkflowTopicsProps.BodyJsonKeys;
-import net.clementlevallois.functions.model.WorkflowTopicsProps.QueryParams; // Import the enum
+import net.clementlevallois.functions.model.WorkflowTopicsProps.QueryParams;
 
 import net.clementlevallois.nocodefunctionswebservices.APIController;
+import org.openide.util.Exceptions;
 
 public class TopicsEndPoint {
 
@@ -51,39 +53,41 @@ public class TopicsEndPoint {
     }
 
     private static RunnableTopicsWorkflow parseQueryParams(RunnableTopicsWorkflow workflow, Context ctx) throws Exception {
-
         for (var entry : ctx.queryParamMap().entrySet()) {
             String key = entry.getKey();
             String decodedParamValue = URLDecoder.decode(entry.getValue().getFirst(), StandardCharsets.UTF_8);
 
-            switch (QueryParams.valueOf(key.toUpperCase())) { // Convert key to uppercase to match enum names
+            Consumer<String> qpHandler = switch (QueryParams.valueOf(key.toUpperCase())) {
                 case LANG ->
-                    workflow.setLang(decodedParamValue);
+                    workflow::setLang;
                 case PRECISION ->
-                    workflow.setPrecision(Integer.parseInt(decodedParamValue));
+                    s -> workflow.setPrecision(Integer.parseInt(s));
                 case MIN_TERM_FREQ ->
-                    workflow.setMinTermFreq(Integer.parseInt(decodedParamValue));
+                    s -> workflow.setMinTermFreq(Integer.parseInt(s));
                 case MIN_CHAR_NUMBER ->
-                    workflow.setMinCharNumber(Integer.parseInt(decodedParamValue));
+                    s -> workflow.setMinCharNumber(Integer.parseInt(s));
                 case REPLACE_STOPWORDS ->
-                    workflow.setReplaceStopwords(Boolean.parseBoolean(decodedParamValue));
+                    s -> workflow.setReplaceStopwords(Boolean.parseBoolean(s));
                 case REMOVE_ACCENTS ->
-                    workflow.setRemoveAccents(Boolean.parseBoolean(decodedParamValue));
+                    s -> workflow.setRemoveAccents(Boolean.parseBoolean(s));
                 case LEMMATIZE ->
-                    workflow.setLemmatize(Boolean.parseBoolean(decodedParamValue));
+                    s -> workflow.setLemmatize(Boolean.parseBoolean(s));
                 case IS_SCIENTIFIC_CORPUS ->
-                    workflow.setIsScientificCorpus(Boolean.parseBoolean(decodedParamValue));
-            }
+                    s -> workflow.setIsScientificCorpus(Boolean.parseBoolean(s));
+            };
+            qpHandler.accept(decodedParamValue);
 
-            switch (GlobalQueryParams.valueOf(key.toUpperCase())) {
+            Consumer<String> gqpHandler = switch (GlobalQueryParams.valueOf(key.toUpperCase())) {
                 case SESSION_ID ->
-                    workflow.setSessionId(decodedParamValue);
+                    workflow::setSessionId;
                 case CALLBACK_URL ->
-                    workflow.setCallbackURL(decodedParamValue);
+                    workflow::setCallbackURL;
                 case JOB_ID ->
-                    handleDataPersistence(workflow, decodedParamValue);
-            }
+                    s -> handleDataPersistence(workflow, s);
+            };
+            gqpHandler.accept(decodedParamValue);
         }
+
         return workflow;
     }
 
@@ -103,15 +107,19 @@ public class TopicsEndPoint {
         return workflow;
     }
 
-    private static void handleDataPersistence(RunnableTopicsWorkflow workflow, String jobId) throws Exception {
+    private static void handleDataPersistence(RunnableTopicsWorkflow workflow, String jobId){
         workflow.setJobId(jobId);
         Path inputFile = APIController.tempFilesFolder.resolve(jobId).resolve(jobId);
         if (Files.exists(inputFile) && !Files.isDirectory(inputFile)) {
-            List<String> lines = Files.readAllLines(inputFile, StandardCharsets.UTF_8);
-            for (int i = 0; i < lines.size(); i++) {
-                workflow.getLines().put(i, lines.get(i).trim());
+            try {
+                List<String> lines = Files.readAllLines(inputFile, StandardCharsets.UTF_8);
+                for (int i = 0; i < lines.size(); i++) {
+                    workflow.getLines().put(i, lines.get(i).trim());
+                }
+                Files.deleteIfExists(inputFile);
+            } catch (IOException ex) {
+                Exceptions.printStackTrace(ex);
             }
-            Files.deleteIfExists(inputFile);
         }
     }
 }
