@@ -7,7 +7,6 @@ package net.clementlevallois.nocodefunctionswebservices.graphops;
 
 import io.javalin.Javalin;
 import io.javalin.http.Context;
-import io.javalin.http.Handler;
 import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
@@ -34,8 +33,8 @@ public class GraphOpsEndPoint {
             JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
 
-            String dataPersistenceId = ctx.queryParam("dataPersistenceId");
-            Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId + "_result");
+            String jobId = ctx.queryParam("dataPersistenceId");
+            Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), jobId + "_result");
             String gexfAsString = "";
             try {
                 gexfAsString = Files.readString(tempDataPath, StandardCharsets.UTF_8);
@@ -54,8 +53,7 @@ public class GraphOpsEndPoint {
             } catch (NumberFormatException e) {
                 nbNodesAsInteger = 30;
             }
-            var runnable = new RunnableGetTopNodesFromGraph();
-            runnable.setCallbackURL(callbackURL);
+            var runnable = new RunnableGetTopNodesFromGraph(jobId);
             runnable.setGexfAsString(gexfAsString);
             runnable.runTopNodesInBackgroundThread(nbNodesAsInteger);
             ctx.result("OK".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);

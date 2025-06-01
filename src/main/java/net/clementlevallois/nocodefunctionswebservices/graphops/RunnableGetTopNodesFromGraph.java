@@ -9,7 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import net.clementlevallois.functions.model.Globals;
-import net.clementlevallois.functions.model.Names;
 import net.clementlevallois.graphops.GetTopNodesFromThickestEdges;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import org.openide.util.Exceptions;
@@ -20,16 +19,20 @@ import org.openide.util.Exceptions;
  */
 public class RunnableGetTopNodesFromGraph {
 
-    String gexfAsString;
+    private String gexfAsString;
+    private final String jobId;
+    private final Globals globals;
 
-    private String dataPersistenceId = "1";
+    public RunnableGetTopNodesFromGraph(String jobId) {
+        this.jobId = jobId;
+        this.globals = new Globals(APIController.tempFilesFolder);
+    }
 
     public void runTopNodesInBackgroundThread(Integer nbTopNodes) {
         Runnable runnable = () -> {
             getTopNodes(nbTopNodes);
         };
         new Thread(runnable).start();
-
     }
 
     public String getTopNodes(Integer nbTopNodes) {
@@ -38,26 +41,13 @@ public class RunnableGetTopNodesFromGraph {
             GetTopNodesFromThickestEdges getTopNodes = new GetTopNodesFromThickestEdges(gexfAsString);
             jsonResult = getTopNodes.returnTopNodesAndEdges(nbTopNodes);
             jsonResult = Json.encodePointer(jsonResult);
-            String resultFileName = GlobalsdataPersistenceId + "_" + Names.TOP_NODES + ".json";
-            Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), resultFileName);
+            Path tempResultsPath = globals.getTopNetworkVivaGraphFormattedFilePath(jobId);
             Files.writeString(tempResultsPath, jsonResult, StandardCharsets.UTF_8);
         } catch (IOException ex) {
             Exceptions.printStackTrace(ex);
         }
         return jsonResult;
 
-    }
-
-    public void setDataPersistenceId(String dataPersistenceId) {
-        this.dataPersistenceId = dataPersistenceId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
-    }
-
-    public void setCallbackURL(String callbackURL) {
-        this.callbackURL = callbackURL;
     }
 
     public void setGexfAsString(String gexfAsString) {

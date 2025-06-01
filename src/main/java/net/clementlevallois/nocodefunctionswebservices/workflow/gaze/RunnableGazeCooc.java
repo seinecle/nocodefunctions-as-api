@@ -51,8 +51,7 @@ public class RunnableGazeCooc {
                 APIController.sendProgressUpdate(80, statusMessage, callbackURL, sessionId, jobId);
 
                 // --- Step 2 : detect top nodes and saving the corresponding json files ---
-                RunnableGetTopNodesFromGraph getTopNodes = new RunnableGetTopNodesFromGraph();
-                getTopNodes.setDataPersistenceId(jobId);
+                RunnableGetTopNodesFromGraph getTopNodes = new RunnableGetTopNodesFromGraph(jobId);
                 getTopNodes.setGexfAsString(gexf);
 
                 String topNodes = getTopNodes.getTopNodes(30);
@@ -62,6 +61,11 @@ public class RunnableGazeCooc {
                 statusMessage = "Top graph identification completed successfully.";
                 APIController.sendProgressUpdate(100, statusMessage, callbackURL, sessionId, jobId);
 
+                // --- Step 3 : writing a job complete file signal flag ---
+                tempResultsPath = globals.getWorkflowCompleteFilePath(jobId);
+                Files.writeString(tempResultsPath, "cooc job finished", StandardCharsets.UTF_8);
+                
+                
             } catch (IOException ex) {
                 Exceptions.printStackTrace(ex);
             }

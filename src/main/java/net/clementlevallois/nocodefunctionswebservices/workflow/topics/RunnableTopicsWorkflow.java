@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.StructuredTaskScope;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import net.clementlevallois.functions.model.Globals;
 import net.clementlevallois.functions.model.WorkflowTopicsProps;
 import org.openide.util.Exceptions;
 
@@ -48,6 +49,7 @@ public class RunnableTopicsWorkflow implements Runnable {
 
     private final HttpClient httpClient;
     private WorkflowTopicsProps props;
+    private Globals globals;
 
     public RunnableTopicsWorkflow() {
         this.httpClient = HttpClient.newBuilder()
@@ -56,6 +58,7 @@ public class RunnableTopicsWorkflow implements Runnable {
                 .build();
         this.lines = new TreeMap();
         this.userSuppliedStopwords = new HashSet();
+        this.globals = new Globals (APIController.tempFilesFolder);
     }
 
     @Override
@@ -135,7 +138,7 @@ public class RunnableTopicsWorkflow implements Runnable {
             // --- Step 5: Send Final Callback ---
             try {
                 sendFinalCallback(overallSuccess, statusMessage);
-                Files.writeString(props.getWorkflowCompleteFilePath(jobId), "job finished");
+                Files.writeString(globals.getWorkflowCompleteFilePath(jobId), "topics job finished");
             } catch (IOException | InterruptedException | URISyntaxException e) {
                 LOGGER.log(Level.SEVERE, "Failed to send final callback for " + jobId, e);
             }

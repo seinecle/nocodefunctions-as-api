@@ -1,21 +1,11 @@
 package net.clementlevallois.nocodefunctionswebservices.workflow.cowo;
 
-import jakarta.json.Json;
-import jakarta.json.JsonObjectBuilder;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 
 import java.io.IOException;
-import java.net.ConnectException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeMap;
@@ -25,7 +15,6 @@ import net.clementlevallois.cowo.controller.CowoFunction;
 import net.clementlevallois.functions.model.Globals;
 import net.clementlevallois.functions.model.WorkflowCowoProps;
 import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetTopNodesFromGraph;
-import org.openide.util.Exceptions;
 
 /**
  * Orchestrates the topics workflow: topic detection, GEXF saving, Json data
@@ -83,11 +72,8 @@ public class RunnableCowoWorkflow implements Runnable {
             APIController.sendProgressUpdate(50, statusMessage, callbackURL, sessionId, jobId);
 
             // --- Step 2 : detect top nodes and saving the corresponding json files ---
-            RunnableGetTopNodesFromGraph getTopNodes = new RunnableGetTopNodesFromGraph();
-            getTopNodes.setCallbackURL(callbackURL);
-            getTopNodes.setDataPersistenceId(jobId);
+            RunnableGetTopNodesFromGraph getTopNodes = new RunnableGetTopNodesFromGraph(jobId);
             getTopNodes.setGexfAsString(gexf);
-            getTopNodes.setSessionId(sessionId);
 
             String topNodes = getTopNodes.getTopNodes(30);
             tempResultsPath = globals.getTopNetworkVivaGraphFormattedFilePath(jobId);

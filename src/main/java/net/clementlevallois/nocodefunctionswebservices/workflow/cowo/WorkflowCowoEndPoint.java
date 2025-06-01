@@ -6,6 +6,7 @@ import io.javalin.http.util.NaiveRateLimit;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
+import java.io.IOException;
 
 import java.io.StringReader;
 import java.net.HttpURLConnection;
@@ -14,11 +15,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import net.clementlevallois.functions.model.Globals;
 import net.clementlevallois.functions.model.WorkflowCowoProps;
 
 import net.clementlevallois.nocodefunctionswebservices.APIController;
+import org.openide.util.Exceptions;
 
 public class WorkflowCowoEndPoint {
 
@@ -62,56 +66,69 @@ public class WorkflowCowoEndPoint {
     }
 
     private static RunnableCowoWorkflow parseParams(RunnableCowoWorkflow workflow, Context ctx) throws Exception {
-
         for (var entry : ctx.queryParamMap().entrySet()) {
             String key = entry.getKey();
             String decodedParamValue = URLDecoder.decode(entry.getValue().getFirst(), StandardCharsets.UTF_8);
-            switch (key) {
-                case "dataPersistenceId" ->
-                    handleDataPersistence(workflow, decodedParamValue);
-                case "lang" ->
-                    workflow.setLang(entry.getValue().getFirst());
-                case "minTermFreq" ->
-                    workflow.setMinTermFreq(Integer.parseInt(decodedParamValue));
-                case "minCharNumber" ->
-                    workflow.setMinCharNumber(Integer.parseInt(decodedParamValue));
-                case "maxNGram" ->
-                    workflow.setMaxNGram(Integer.parseInt(decodedParamValue));
-                case "minCoocFreq" ->
-                    workflow.setMinCoocFreq(Integer.parseInt(decodedParamValue));
-                case "replaceStopwords" ->
-                    workflow.setReplaceStopwords(Boolean.parseBoolean(decodedParamValue));
-                case "removeAccents" ->
-                    workflow.setRemoveAccents(Boolean.parseBoolean(decodedParamValue));
-                case "lemmatize" ->
-                    workflow.setLemmatize(Boolean.parseBoolean(decodedParamValue));
-                case "isScientificCorpus" ->
-                    workflow.setIsScientificCorpus(Boolean.parseBoolean(decodedParamValue));
-                case "firstNames" ->
-                    workflow.setFirstNames(Boolean.parseBoolean(decodedParamValue));
-                case "typeCorrection" ->
-                    workflow.setTypeCorrection(decodedParamValue);
-                case "sessionId" ->
-                    workflow.setSessionId(decodedParamValue);
-                case "callbackURL" ->
-                    workflow.setCallbackURL(decodedParamValue);
-                default -> {
-                    System.out.println("json key received in topics workflow api endpoint not recognized: " + key);
-                }
+
+            Optional<WorkflowCowoProps.QueryParams> qp = APIController.enumValueOf(WorkflowCowoProps.QueryParams.class, key);
+            Optional<Globals.GlobalQueryParams> gqp = APIController.enumValueOf(Globals.GlobalQueryParams.class, key);
+
+            if (qp.isPresent()) {
+                Consumer<String> qpHandler = switch (qp.get()) {
+                    case LANG ->
+                        workflow::setLang;
+                    case MIN_CHAR_NUMBER ->
+                        s -> workflow.setMinCharNumber(Integer.parseInt(s));
+                    case REPLACE_STOPWORDS ->
+                        s -> workflow.setReplaceStopwords(Boolean.parseBoolean(s));
+                    case IS_SCIENTIFIC_CORPUS ->
+                        s -> workflow.setIsScientificCorpus(Boolean.parseBoolean(s));
+                    case LEMMATIZE ->
+                        s -> workflow.setLemmatize(Boolean.parseBoolean(s));
+                    case REMOVE_ACCENTS ->
+                        s -> workflow.setRemoveAccents(Boolean.parseBoolean(s));
+                    case MIN_TERM_FREQ ->
+                        s -> workflow.setMinTermFreq(Integer.parseInt(s));
+                    case MIN_COOC_FREQ ->
+                        s -> workflow.setMinCoocFreq(Integer.parseInt(s));
+                    case REMOVE_FIRST_NAMES ->
+                        s -> workflow.setFirstNames(Boolean.parseBoolean(s));
+                    case MAX_NGRAMS ->
+                        s -> workflow.setMaxNGram(Integer.parseInt(s));
+                    case TYPE_CORRECTION ->
+                        workflow::setTypeCorrection;
+                };
+                qpHandler.accept(decodedParamValue);
+            } else if (gqp.isPresent()) {
+                Consumer<String> gqpHandler = switch (gqp.get()) {
+                    case SESSION_ID ->
+                        workflow::setSessionId;
+                    case CALLBACK_URL ->
+                        workflow::setCallbackURL;
+                    case JOB_ID ->
+                        s -> handleDataPersistence(workflow, s);
+                };
+                gqpHandler.accept(decodedParamValue);
+            } else {
+                System.out.println("Workflow Cowo endpoint: unknown query param key: " + key);
             }
         }
         return workflow;
     }
 
-    private static void handleDataPersistence(RunnableCowoWorkflow workflow, String dataPersistenceId) throws Exception {
+    private static void handleDataPersistence(RunnableCowoWorkflow workflow, String dataPersistenceId) {
         workflow.setJobId(dataPersistenceId);
         Path inputFile = APIController.tempFilesFolder.resolve(dataPersistenceId).resolve(dataPersistenceId);
         if (Files.exists(inputFile) && !Files.isDirectory(inputFile)) {
-            List<String> lines = Files.readAllLines(inputFile, StandardCharsets.UTF_8);
-            for (int i = 0; i < lines.size(); i++) {
-                workflow.getLines().put(i, lines.get(i).trim());
+            try {
+                List<String> lines = Files.readAllLines(inputFile, StandardCharsets.UTF_8);
+                for (int i = 0; i < lines.size(); i++) {
+                    workflow.getLines().put(i, lines.get(i).trim());
+                }
+                Files.deleteIfExists(inputFile);
+            } catch (IOException ex) {
+                Exceptions.printStackTrace(ex);
             }
-            Files.deleteIfExists(inputFile);
         }
     }
 }

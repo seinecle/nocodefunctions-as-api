@@ -34,6 +34,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -277,6 +278,14 @@ public class APIController {
             System.out.println("exception when serializing object");
             System.out.println("object is: " + o.getClass());
             return "";
+        }
+    }
+
+    public static <E extends Enum<E>> Optional<E> enumValueOf(Class<E> enumClass, String value) {
+        try {
+            return Optional.of(Enum.valueOf(enumClass, value.toUpperCase()));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
         }
     }
 

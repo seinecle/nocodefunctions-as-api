@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package net.clementlevallois.nocodefunctionswebservices.workflow.gaze;
 
 import io.javalin.Javalin;
@@ -14,17 +9,26 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 import java.io.StringReader;
 import java.net.HttpURLConnection;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import net.clementlevallois.functions.model.Globals;
+import net.clementlevallois.functions.model.Globals.GlobalQueryParams;
 import net.clementlevallois.functions.model.WorkflowGazeProps;
+import net.clementlevallois.functions.model.WorkflowGazeProps.BodyJsonKeys;
+import static net.clementlevallois.functions.model.WorkflowGazeProps.BodyJsonKeys.LINES;
+import net.clementlevallois.functions.model.WorkflowGazeProps.QueryParams;
+import net.clementlevallois.nocodefunctionswebservices.APIController;
+import static net.clementlevallois.nocodefunctionswebservices.APIController.enumValueOf;
 import net.clementlevallois.utils.Multiset;
 
 /**
@@ -42,42 +46,11 @@ public class GazeEndPoint {
             if (body.isEmpty()) {
                 String errorMsg = "body of the request should not be empty";
                 ctx.result(errorMsg).status(HttpURLConnection.HTTP_BAD_REQUEST);
-                return;
             } else {
-                RunnableGazeCooc gazeRunnable = new RunnableGazeCooc();
-                JsonReader jsonReader = Json.createReader(new StringReader(body));
-                JsonObject jsonObject = jsonReader.readObject();
-                for (String nextKey : jsonObject.keySet()) {
-                    if (nextKey.equals("lines")) {
-                        JsonObject linesJson = jsonObject.getJsonObject(nextKey);
-                        Map<Integer, Multiset<String>> lines = new HashMap();
-                        for (String nextLineKey : linesJson.keySet()) {
-                            JsonArray jsonArray = linesJson.getJsonArray(nextLineKey);
-                            List<String> list = new ArrayList();
-                            for (int i = 0; i < jsonArray.size(); i++) {
-                                list.add(jsonArray.getString(i));
-                            }
-                            Multiset multiset = new Multiset();
-                            multiset.addAllFromListOrSet(list);
-                            lines.put(Integer.valueOf(nextLineKey), multiset);
-                        }
-                        gazeRunnable.setLines(lines);
-                    }
-                    if (nextKey.equals("sessionId")) {
-                        String sessionId = jsonObject.getString(nextKey);
-                        gazeRunnable.setSessionId(sessionId);
-                    }
-                    if (nextKey.equals("callbackURL")) {
-                        String callbackURL = jsonObject.getString(nextKey);
-                        gazeRunnable.setCallbackURL(callbackURL);
-                    }
-                    if (nextKey.equals("dataPersistenceId")) {
-                        String dataPersistenceId = jsonObject.getString(nextKey);
-                        gazeRunnable.setJobId(dataPersistenceId);
-                    }
-
-                }
-                gazeRunnable.runGazeCoocInBackgroundThread();
+                RunnableGazeCooc runnableCooc = parseBodyForCooc(body);
+                Map<String, List<String>> queryParamMap = ctx.queryParamMap();
+                runnableCooc = parseQueryParamsForCooc(runnableCooc, queryParamMap);
+                runnableCooc.runGazeCoocInBackgroundThread();
                 ctx.result("ok").status(HttpURLConnection.HTTP_OK);
             }
         });
@@ -90,53 +63,123 @@ public class GazeEndPoint {
             if (body.isEmpty()) {
                 String errorMsg = "body of the request should not be empty";
                 ctx.result(errorMsg).status(HttpURLConnection.HTTP_BAD_REQUEST);
-                return;
             } else {
-                RunnableGazeSim gazeSimRunnable = new RunnableGazeSim();
-                JsonReader jsonReader = Json.createReader(new StringReader(body));
-                JsonObject jsonObject = jsonReader.readObject();
-                for (String nextKey : jsonObject.keySet()) {
-                    if (nextKey.equals("lines")) {
-                        JsonObject linesJson = jsonObject.getJsonObject(nextKey);
-                        Map<String, Set<String>> lines = new TreeMap();
-                        for (String nextLineKey : linesJson.keySet()) {
-                            JsonArray jsonArray = linesJson.getJsonArray(nextLineKey);
-                            List<String> list = new ArrayList();
-                            for (int i = 0; i < jsonArray.size(); i++) {
-                                list.add(jsonArray.getString(i));
-                            }
-                            Set<String> set = new HashSet();
-                            set.addAll(list);
-                            lines.put(nextLineKey, set);
-                        }
-                        gazeSimRunnable.setLines(lines);
-                    }
-                    if (nextKey.equals("sessionId")) {
-                        String sessionId = jsonObject.getString(nextKey);
-                        gazeSimRunnable.setSessionId(sessionId);
-                    }
-                    if (nextKey.equals("callbackURL")) {
-                        String callbackURL = jsonObject.getString(nextKey);
-                        gazeSimRunnable.setCallbackURL(callbackURL);
-                    }
-                    if (nextKey.equals("dataPersistenceId")) {
-                        String dataPersistenceId = jsonObject.getString(nextKey);
-                        gazeSimRunnable.setDataPersistenceId(dataPersistenceId);
-                    }
-                    if (nextKey.equals("parameters")) {
-                        JsonObject parameters = jsonObject.getJsonObject(nextKey);
-                        for (String nextKeyParam : parameters.keySet()) {
-                            if (nextKeyParam.equals("minSharedTarget")) {
-                                int minSharedTarget = parameters.getInt(nextKeyParam);
-                                gazeSimRunnable.setMinSharedTarget(minSharedTarget);
-                            }
-                        }
-                    }
-                }
+                RunnableGazeSim gazeSimRunnable = parseBodyForSim(body);
+                Map<String, List<String>> queryParamMap = ctx.queryParamMap();
+                gazeSimRunnable = parseQueryParamsForSim(gazeSimRunnable, queryParamMap);
                 gazeSimRunnable.runGazeSimInBackgroundThread();
                 ctx.result("ok").status(HttpURLConnection.HTTP_OK);
             }
         });
         return app;
+    }
+
+    private static RunnableGazeCooc parseBodyForCooc(String body) throws Exception {
+        RunnableGazeCooc workflow = new RunnableGazeCooc();
+        JsonReader reader = Json.createReader(new StringReader(body));
+        JsonObject json = reader.readObject();
+        for (var entry : json.entrySet()) {
+            String key = entry.getKey();
+            switch (BodyJsonKeys.valueOf(key.toUpperCase())) {
+                case LINES -> {
+                    JsonObject linesJson = json.getJsonObject(key);
+                    Map<Integer, Multiset<String>> lines = new HashMap();
+                    for (String nextLineKey : linesJson.keySet()) {
+                        JsonArray jsonArray = linesJson.getJsonArray(nextLineKey);
+                        List<String> list = new ArrayList();
+                        for (int i = 0; i < jsonArray.size(); i++) {
+                            list.add(jsonArray.getString(i));
+                        }
+                        Multiset multiset = new Multiset();
+                        multiset.addAllFromListOrSet(list);
+                        lines.put(Integer.valueOf(nextLineKey), multiset);
+                    }
+                    workflow.setLines(lines);
+                }
+            }
+        }
+        return workflow;
+    }
+
+    private static RunnableGazeSim parseBodyForSim(String body) throws Exception {
+        RunnableGazeSim gazeSimRunnable = new RunnableGazeSim();
+        JsonReader jsonReader = Json.createReader(new StringReader(body));
+        JsonObject jsonObject = jsonReader.readObject();
+        for (var entry : jsonObject.entrySet()) {
+            String key = entry.getKey();
+            switch (BodyJsonKeys.valueOf(key.toUpperCase())) {
+                case LINES -> {
+                    JsonObject linesJson = jsonObject.getJsonObject(key);
+                    Map<String, Set<String>> lines = new TreeMap();
+                    for (String nextLineKey : linesJson.keySet()) {
+                        JsonArray jsonArray = linesJson.getJsonArray(nextLineKey);
+                        List<String> list = new ArrayList();
+                        for (int i = 0; i < jsonArray.size(); i++) {
+                            list.add(jsonArray.getString(i));
+                        }
+                        Set<String> set = new HashSet();
+                        set.addAll(list);
+                        lines.put(nextLineKey, set);
+                    }
+                    gazeSimRunnable.setLines(lines);
+                }
+            }
+        }
+        return gazeSimRunnable;
+    }
+
+    private static RunnableGazeCooc parseQueryParamsForCooc(RunnableGazeCooc workflow, Map<String, List<String>> queryParamMap) throws Exception {
+        for (var entry : queryParamMap.entrySet()) {
+            String key = entry.getKey();
+            String decodedParamValue = URLDecoder.decode(entry.getValue().getFirst(), StandardCharsets.UTF_8);
+
+            Optional<GlobalQueryParams> gqp = APIController.enumValueOf(GlobalQueryParams.class, key);
+
+            if (gqp.isPresent()) {
+                Consumer<String> gqpHandler = switch (gqp.get()) {
+                    case SESSION_ID ->
+                        workflow::setSessionId;
+                    case CALLBACK_URL ->
+                        workflow::setCallbackURL;
+                    case JOB_ID ->
+                        workflow::setJobId;
+                };
+                gqpHandler.accept(decodedParamValue);
+            } else {
+                System.out.println("issue in workflow gaze cooc endpoint with unknown enum value");
+            }
+        }
+        return workflow;
+    }
+
+    private static RunnableGazeSim parseQueryParamsForSim(RunnableGazeSim workflow, Map<String, List<String>> queryParamMap) throws Exception {
+        for (var entry : queryParamMap.entrySet()) {
+            String key = entry.getKey();
+            String decodedParamValue = URLDecoder.decode(entry.getValue().getFirst(), StandardCharsets.UTF_8);
+
+            Optional<QueryParams> qp = enumValueOf(QueryParams.class, key);
+            Optional<GlobalQueryParams> gqp = enumValueOf(GlobalQueryParams.class, key);
+
+            if (qp.isPresent()) {
+                Consumer<String> qpHandler = switch (qp.get()) {
+                    case MIN_SHARED_TARGETS ->
+                        s -> workflow.setMinSharedTarget(Integer.parseInt((s)));
+                };
+                qpHandler.accept(decodedParamValue);
+            } else if (gqp.isPresent()) {
+                Consumer<String> gqpHandler = switch (gqp.get()) {
+                    case SESSION_ID ->
+                        workflow::setSessionId;
+                    case CALLBACK_URL ->
+                        workflow::setCallbackURL;
+                    case JOB_ID ->
+                        workflow::setJobId;
+                };
+                gqpHandler.accept(decodedParamValue);
+            } else {
+                System.out.println("issue in workflow sim gaze endpoint with unknown enum value");
+            }
+        }
+        return workflow;
     }
 }
