@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import net.clementlevallois.functions.model.Globals;
-import net.clementlevallois.functions.model.WorkflowGazeProps;
+import net.clementlevallois.functions.model.WorkflowSimProps;
 import net.clementlevallois.gaze.controller.SimilarityFunction;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetTopNodesFromGraph;
@@ -24,15 +24,16 @@ import org.openide.util.Exceptions;
 public class RunnableGazeSim {
 
     private Map<String, Set<String>> lines = new TreeMap();
-    private final WorkflowGazeProps functionProps;
+    private final WorkflowSimProps functionProps;
     private final Globals globals;
     private String jobId;
     private String sessionId;
     private String callbackURL;
     private int minSharedTarget = 1;
+    private int sourceColIndex;
 
     public RunnableGazeSim() {
-        this.functionProps = new WorkflowGazeProps(APIController.tempFilesFolder);
+        this.functionProps = new WorkflowSimProps(APIController.tempFilesFolder);
         this.globals = new Globals(APIController.tempFilesFolder);
     }
 
@@ -103,4 +104,13 @@ public class RunnableGazeSim {
     public void setMinSharedTarget(int minSharedTarget) {
         this.minSharedTarget = minSharedTarget;
     }
+
+    public int getSourceColIndex() {
+        return sourceColIndex;
+    }
+
+    public void setSourceColIndex(int sourceColIndex) {
+        this.sourceColIndex = sourceColIndex;
+    }
+
 }

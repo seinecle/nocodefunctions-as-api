@@ -52,7 +52,6 @@ public class JsonDataSaverTask {
              LOGGER.log(Level.WARNING, "Constructed JSON string is blank, cannot save file");
         }
 
-        // Write the JSON String to the file
         try {
             Files.writeString(targetFilePath, jsonString, StandardCharsets.UTF_8);
             LOGGER.log(Level.INFO, "Successfully saved result JSON to: {0}", targetFilePath.toAbsolutePath());

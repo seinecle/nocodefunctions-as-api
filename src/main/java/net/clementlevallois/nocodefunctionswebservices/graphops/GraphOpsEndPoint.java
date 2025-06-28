@@ -13,11 +13,15 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import net.clementlevallois.functions.model.FunctionSpatialization;
+import static net.clementlevallois.functions.model.FunctionSpatialization.QueryParams.DURATION_IN_SECONDS;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import net.clementlevallois.spatialize.controller.SpatializeFunction;
 
@@ -103,9 +107,9 @@ public class GraphOpsEndPoint {
         app.get("/api/graphops/textualSummaryPerCommunity", (Context ctx) -> {
             JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
-            
-            String dataPersistenceId = ctx.queryParam("dataPersistenceId");
-            Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId + "_result");
+
+            String jobId = ctx.queryParam("dataPersistenceId");
+            Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), jobId + "_result");
             String gexfAsString = "";
             try {
                 gexfAsString = Files.readString(tempDataPath, StandardCharsets.UTF_8);
@@ -142,23 +146,15 @@ public class GraphOpsEndPoint {
             }
             var textualSummaryPerCommunity = new RunnableGetTextPerCommunity();
             textualSummaryPerCommunity.setCallbackURL(callBackURL);
-            textualSummaryPerCommunity.setDataPersistenceId(dataPersistenceId);
+            textualSummaryPerCommunity.setDataPersistenceId(jobId);
             textualSummaryPerCommunity.setGexfAsString(gexfAsString);
             textualSummaryPerCommunity.runTextPerCommunityInBackgroundThread(userSuppliedCommunityFieldName, textualAttribute, maxTopNodesAsInteger, minCommunitySizeAsInteger, maxTextLengthPerCommunityAsInteger);
             ctx.result("OK".getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
         });
-        
-        
-        app.post("/api/"+ FunctionSpatialization.ENDPOINT, ctx -> {
+
+        app.post("/api/" + FunctionSpatialization.ENDPOINT, ctx -> {
             JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
             NaiveRateLimit.requestPerTimeUnit(ctx, 1, TimeUnit.SECONDS);
-            String durationInSeconds = ctx.queryParam("durationInSeconds");
-            Integer durationLayout;
-            try {
-                durationLayout = Integer.valueOf(durationInSeconds);
-            } catch (NumberFormatException e) {
-                durationLayout = 20;
-            }
             byte[] bodyAsBytes = ctx.bodyAsBytes();
             if (bodyAsBytes.length == 0) {
                 objectBuilder.add("-99", "body of the request should not be empty");
@@ -167,15 +163,35 @@ public class GraphOpsEndPoint {
             } else {
                 String gexf = new String(bodyAsBytes, StandardCharsets.UTF_8);
                 SpatializeFunction spatializer = new SpatializeFunction();
-                String gexfSpatialized = spatializer.spatialize(gexf, durationLayout);
+                SpatializeRequest spatializeRequest = parseParamsSpatialization(ctx);
+                String gexfSpatialized = spatializer.spatialize(gexf, spatializeRequest.getSeconds());
 
                 ctx.result(gexfSpatialized.getBytes(StandardCharsets.UTF_8)).status(HttpURLConnection.HTTP_OK);
             }
         }
         );
-
-
         return app;
-
     }
+
+    private static SpatializeRequest parseParamsSpatialization(Context ctx) throws Exception {
+        var sr = new SpatializeRequest();
+        for (var entry : ctx.queryParamMap().entrySet()) {
+            String key = entry.getKey();
+            String decodedParamValue = URLDecoder.decode(entry.getValue().getFirst(), StandardCharsets.UTF_8);
+            Optional<FunctionSpatialization.QueryParams> qp = APIController.enumValueOf(FunctionSpatialization.QueryParams.class, key);
+
+            if (qp.isPresent()) {
+                Consumer<String> qpHandler = switch (qp.get()) {
+                    case DURATION_IN_SECONDS ->
+                        s -> sr.setSeconds(Integer.parseInt(s));
+                };
+                qpHandler.accept(decodedParamValue);
+                
+            } else {
+                System.out.println("Workflow Cowo endpoint: unknown query param key: " + key);
+            }
+        }
+        return sr;
+    }
+
 }

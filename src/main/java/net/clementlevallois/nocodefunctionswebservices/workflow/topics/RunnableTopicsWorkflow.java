@@ -156,9 +156,6 @@ public class RunnableTopicsWorkflow implements Runnable {
         }
     }
 
-    /**
-     * Helper methods for saving files *
-     */
     private void saveGexfFile(String gexfSemanticNetwork, Path pathFileToSave) {
         if (gexfSemanticNetwork != null && !gexfSemanticNetwork.isBlank()) {
             try {
@@ -253,8 +250,6 @@ public class RunnableTopicsWorkflow implements Runnable {
             LOGGER.log(Level.WARNING, "Callback POST connection refused for " + jobId, e);
             throw new IOException("Callback connection refused", e); // Propagate
         }
-        // Allow other IOExceptions / InterruptedExceptions to propagate
-        // Allow other IOExceptions / InterruptedExceptions to propagate
     }
 
     public void setUserSuppliedStopwords(Set<String> userSuppliedStopwords) {

@@ -79,9 +79,15 @@ public class RunnableCowoWorkflow implements Runnable {
             tempResultsPath = globals.getTopNetworkVivaGraphFormattedFilePath(jobId);
             Files.writeString(tempResultsPath, topNodes, StandardCharsets.UTF_8);
 
+            
+            
+            // --- Step 3 : workflow complete signal ---
             statusMessage = "Cowo workflow completed successfully.";
             overallSuccess = true;
             APIController.sendProgressUpdate(100, statusMessage, callbackURL, sessionId, jobId);
+
+            Path workflowCompleteFilePath = globals.getWorkflowCompleteFilePath(jobId);
+            Files.writeString(workflowCompleteFilePath, "finished");
 
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Workflow failed critically for " + jobId, e);

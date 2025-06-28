@@ -13,8 +13,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import net.clementlevallois.functions.model.Globals.Names;
 import net.clementlevallois.functions.model.KeyNodesInfo;
-import net.clementlevallois.functions.model.Names;
 import net.clementlevallois.graphops.KeyNodeInsights;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import org.openide.util.Exceptions;
@@ -52,7 +52,7 @@ public class RunnableGetKeyNodes {
 
             JsonObjectBuilder joBuilder = Json.createObjectBuilder();
             joBuilder.add("info", "RESULT_ARRIVED");
-            joBuilder.add("function", Names.KEY_NODES.toString());
+            joBuilder.add("function", Names.KEY_NODES.getDescription());
             joBuilder.add("sessionId", sessionId);
             joBuilder.add("dataPersistenceId", dataPersistenceId);
             String joStringPayload = joBuilder.build().toString();

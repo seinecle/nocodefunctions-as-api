@@ -14,7 +14,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import net.clementlevallois.functions.model.Names;
+import net.clementlevallois.functions.model.Globals.Names;
 import net.clementlevallois.llm.functions.LLMsOps;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import org.openide.util.Exceptions;

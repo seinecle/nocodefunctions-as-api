@@ -30,6 +30,11 @@
             <version>1.0</version>
         </dependency>
         <dependency>
+            <groupId>net.clementlevallois.io</groupId>
+            <artifactId>io_model</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <dependency>
             <groupId>net.clementlevallois.functions</groupId>
             <artifactId>umigon-explain</artifactId>
             <version>1.0</version>
@@ -52,7 +57,7 @@
         </dependency>
         <dependency>
             <groupId>net.clementlevallois.functions</groupId>
-            <artifactId>spatialize-function</artifactId>
+            <artifactId>spatialize</artifactId>
             <version>1.0</version>
             <type>jar</type>
         </dependency>

@@ -10,7 +10,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.TreeMap;
 import net.clementlevallois.functions.model.Globals;
-import net.clementlevallois.functions.model.WorkflowGazeProps;
+import net.clementlevallois.functions.model.WorkflowCoocProps;
 import net.clementlevallois.gaze.controller.CoocFunction;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetTopNodesFromGraph;
@@ -21,17 +21,17 @@ import org.openide.util.Exceptions;
  *
  * @author LEVALLOIS
  */
-public class RunnableGazeCooc {
+public class RunnableCooc {
 
     private Map<Integer, Multiset<String>> lines = new TreeMap();
-    private final WorkflowGazeProps functionProps;
+    private final WorkflowCoocProps functionProps;
     private final Globals globals;
     private String jobId;
     private String sessionId;
     private String callbackURL;
 
-    public RunnableGazeCooc() {
-        this.functionProps = new WorkflowGazeProps(APIController.tempFilesFolder);
+    public RunnableCooc() {
+        this.functionProps = new WorkflowCoocProps(APIController.tempFilesFolder);
         this.globals = new Globals(APIController.tempFilesFolder);
 
     }

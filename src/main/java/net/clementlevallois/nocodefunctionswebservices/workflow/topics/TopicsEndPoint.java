@@ -34,28 +34,18 @@ public class TopicsEndPoint {
         app.post(Globals.API_ENDPOINT_ROOT + WorkflowTopicsProps.ENDPOINT, ctx -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
 
-            String body = ctx.body();
-            if (body.isBlank()) {
-                ctx.status(HttpURLConnection.HTTP_BAD_REQUEST)
-                        .result(Json.createObjectBuilder()
-                                .add("-99", "topics endpoint: body of the request should not be empty")
-                                .build()
-                                .toString());
-
-            } else {
-                RunnableTopicsWorkflow workflow = parseBody(body);
-                Map<String, List<String>> queryParamMap = ctx.queryParamMap();
-                workflow = parseQueryParams(workflow, queryParamMap);
-                workflow.setRequestedFormats(Set.of("gexf", "json"));
-                workflow.run();
-                ctx.status(HttpURLConnection.HTTP_OK).result("ok");
-            }
+            Map<String, List<String>> queryParamMap = ctx.queryParamMap();
+            RunnableTopicsWorkflow workflow = parseQueryParams(queryParamMap);
+            workflow.setRequestedFormats(Set.of("gexf", "json"));
+            workflow.run();
+            ctx.status(HttpURLConnection.HTTP_OK).result("ok");
         });
 
         return app;
     }
 
-    private static RunnableTopicsWorkflow parseQueryParams(RunnableTopicsWorkflow workflow, Map<String, List<String>> queryParamMap) throws Exception {
+    private static RunnableTopicsWorkflow parseQueryParams(Map<String, List<String>> queryParamMap) throws Exception {
+        var workflow = new RunnableTopicsWorkflow();
         for (var entry : queryParamMap.entrySet()) {
             String key = entry.getKey();
             String decodedParamValue = URLDecoder.decode(entry.getValue().getFirst(), StandardCharsets.UTF_8);

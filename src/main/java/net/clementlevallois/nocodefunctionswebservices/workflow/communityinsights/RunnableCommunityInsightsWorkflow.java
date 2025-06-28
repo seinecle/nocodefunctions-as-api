@@ -1,6 +1,5 @@
 package net.clementlevallois.nocodefunctionswebservices.workflow.communityinsights;
 
-// Imports remain largely the same, remove unused ones like UrlBuilder, JsonWriter etc.
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
@@ -24,7 +23,6 @@ import java.util.logging.Logger;
 import net.clementlevallois.functions.model.Globals;
 import net.clementlevallois.functions.model.WorkflowCommunityInsightsProps;
 import net.clementlevallois.functions.model.KeyNodesInfo;
-import net.clementlevallois.functions.model.Names;
 import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetKeyNodes;
 import net.clementlevallois.nocodefunctionswebservices.graphops.RunnableGetTextPerCommunity;
 import net.clementlevallois.nocodefunctionswebservices.llms.RunnableContextFromSample;
@@ -38,7 +36,7 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
     private String targetLang;
     private String sessionId;
     private String callbackURL;
-    private String dataPersistenceId;
+    private String jobId;
     private String textualAttribute;
     private String userSuppliedCommunityFieldName;
     private int maxTopNodesPerCommunityAsInteger;
@@ -56,13 +54,11 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
 
     @Override
     public void run() {
-        boolean overallSuccess = false;
-
-        Path tempDirForThisTask = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId);
+        Path tempDirForThisTask = Path.of(APIController.tempFilesFolder.toString(), jobId);
 
         ConcurrentMap<String, String> contextPerCommunity = new ConcurrentHashMap();
 
-        LOGGER.log(Level.INFO, "Starting workflow run for id: {0}", dataPersistenceId);
+        LOGGER.log(Level.INFO, "Starting workflow run for id: {0}", jobId);
 
         try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
             if (!textualAttribute.isBlank()) {
@@ -74,7 +70,7 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
                     var textOps = new RunnableGetTextPerCommunity();
                     textOps.setGexfAsString(gexf);
                     textOps.setCallbackURL(callbackURL);
-                    textOps.setDataPersistenceId(dataPersistenceId);
+                    textOps.setDataPersistenceId(jobId);
                     textOps.setSessionId(sessionId);
                     Map<String, String> results = textOps.getTextPerCommunity(userSuppliedCommunityFieldName, textualAttribute, maxTopNodesPerCommunityAsInteger, minCommunitySizeAsInteger, maxTextLength);
 
@@ -89,7 +85,7 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
                         scope.fork(() -> {
                             var contextDetector = new RunnableContextFromSample();
                             contextDetector.setCallbackURL(callbackURL);
-                            contextDetector.setDataPersistenceId(dataPersistenceId);
+                            contextDetector.setDataPersistenceId(jobId);
                             contextDetector.setSessionId(sessionId);
                             String contextFromSample = contextDetector.getContextFromSample(gexf, sourceLang, targetLang);
                             contextPerCommunity.put(entry.getKey(), contextFromSample);
@@ -101,7 +97,7 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
                     for (Map.Entry<String, String> entry : contextPerCommunity.entrySet()) {
                         joBuilder.add(entry.getKey(), entry.getValue());
                     }
-                    String contextSampleFile = dataPersistenceId + WorkflowCommunityInsightsProps.CONTEXT_FROM_SAMPLE_FILE_NAME_EXTENSION + WorkflowCommunityInsightsProps.CONTEXT_FROM_SAMPLE_FILE_EXTENSION;
+                    String contextSampleFile = jobId + WorkflowCommunityInsightsProps.CONTEXT_FROM_SAMPLE_FILE_NAME_EXTENSION + WorkflowCommunityInsightsProps.CONTEXT_FROM_SAMPLE_FILE_EXTENSION;
                     Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), contextSampleFile);
                     Files.writeString(tempResultsPath, joBuilder.build().toString(), StandardCharsets.UTF_8);
 
@@ -119,11 +115,11 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
                 var keyNodes = new RunnableGetKeyNodes();
                 keyNodes.setGexfAsString(gexf);
                 keyNodes.setCallbackURL(callbackURL);
-                keyNodes.setDataPersistenceId(dataPersistenceId);
+                keyNodes.setDataPersistenceId(jobId);
                 keyNodes.setSessionId(sessionId);
                 KeyNodesInfo keyNodesInfo = keyNodes.getKeyNodes(userSuppliedCommunityFieldName, maxTopNodesPerCommunityAsInteger, minCommunitySizeAsInteger);
 
-                String keyNodesFile = dataPersistenceId + WorkflowCommunityInsightsProps.KEY_NODES_NAME_EXTENSION + WorkflowCommunityInsightsProps.KEY_NODES_FILE_EXTENSION;
+                String keyNodesFile = jobId + WorkflowCommunityInsightsProps.KEY_NODES_NAME_EXTENSION + WorkflowCommunityInsightsProps.KEY_NODES_FILE_EXTENSION;
                 Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), keyNodesFile);
                 Files.writeString(tempResultsPath, keyNodesInfo.toJsonForInsights().toString(), StandardCharsets.UTF_8);
                 statusMessage = "key nodes per community: over";
@@ -134,17 +130,15 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
             // --- Step 4: Finalize Status ---
             scope.join();
             String statusMessage = "Workflow completed successfully.";
-            overallSuccess = true;
             sendProgressUpdate(100, statusMessage);
-            String workflowCompleteFlagFile = dataPersistenceId + Globals.WORKFLOW_COMPLETE_FILE_NAME_EXTENSION;
+            String workflowCompleteFlagFile = jobId + Globals.WORKFLOW_COMPLETE_FILE_NAME_EXTENSION;
             Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), workflowCompleteFlagFile);
             Files.writeString(tempResultsPath, "community insights workflow is complete", StandardCharsets.UTF_8);
             scope.throwIfFailed();
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Workflow failed critically for " + dataPersistenceId, e);
+            LOGGER.log(Level.SEVERE, "Workflow failed critically for " + jobId, e);
             String statusMessage = "Workflow failed: " + e.getMessage();
-            overallSuccess = false;
             try {
                 sendProgressUpdate(100, statusMessage);
             } catch (Exception ignored) {
@@ -152,12 +146,12 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
         } finally {
             // Cleanup Input Data File ---
             try {
-                Path inputPath = tempDirForThisTask.resolve(dataPersistenceId);
+                Path inputPath = tempDirForThisTask.resolve(jobId);
                 if (Files.deleteIfExists(inputPath)) {
                     LOGGER.log(Level.INFO, "Deleted temporary input file: {0}", inputPath.toString());
                 }
             } catch (IOException e) {
-                LOGGER.log(Level.WARNING, "Could not delete temporary input file: " + dataPersistenceId, e);
+                LOGGER.log(Level.WARNING, "Could not delete temporary input file: " + jobId, e);
             }
         }
     }
@@ -173,12 +167,12 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
             if (sessionId != null) {
                 joBuilder.add("sessionId", sessionId);
             }
-            joBuilder.add("dataPersistenceId", dataPersistenceId);
+            joBuilder.add("dataPersistenceId", jobId);
             joBuilder.add("progress", progress);
             joBuilder.add("message", message != null ? message : "");
             sendCallback(joBuilder.build().toString());
         } catch (IOException | InterruptedException | URISyntaxException e) {
-            LOGGER.log(Level.WARNING, "Failed to send progress update for " + dataPersistenceId, e);
+            LOGGER.log(Level.WARNING, "Failed to send progress update for " + jobId, e);
         }
     }
 
@@ -193,7 +187,7 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
                 .build();
 
         LOGGER.log(Level.INFO, "Sending callback to {0} for {1}: Payload size={2} chars",
-                new Object[]{callbackURL, dataPersistenceId, jsonPayload.length()});
+                new Object[]{callbackURL, jobId, jsonPayload.length()});
 
         this.httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
 
@@ -215,8 +209,8 @@ public class RunnableCommunityInsightsWorkflow implements Runnable {
         this.callbackURL = callbackURL;
     }
 
-    public void setDataPersistenceId(String dataPersistenceId) {
-        this.dataPersistenceId = dataPersistenceId;
+    public void setJobId(String jobId) {
+        this.jobId = jobId;
     }
 
     public void setUserSuppliedCommunityFieldName(String userSuppliedCommunityFieldName) {

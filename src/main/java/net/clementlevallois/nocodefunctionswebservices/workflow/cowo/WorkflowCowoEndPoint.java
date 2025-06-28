@@ -30,17 +30,7 @@ public class WorkflowCowoEndPoint {
         app.post(Globals.API_ENDPOINT_ROOT + WorkflowCowoProps.ENDPOINT, ctx -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
 
-            String body = ctx.body();
-            if (body.isBlank()) {
-                ctx.status(HttpURLConnection.HTTP_BAD_REQUEST)
-                        .result(Json.createObjectBuilder()
-                                .add("-99", "workflow cowo endpoint: body of the request should not be empty")
-                                .build()
-                                .toString());
-                return;
-            }
-            RunnableCowoWorkflow workflow = parseBody(body);
-            workflow = parseParams(workflow, ctx);
+            RunnableCowoWorkflow workflow = parseParams(ctx);
             workflow.run();
             ctx.status(HttpURLConnection.HTTP_OK).result("ok");
         });
@@ -65,7 +55,8 @@ public class WorkflowCowoEndPoint {
         return workflow;
     }
 
-    private static RunnableCowoWorkflow parseParams(RunnableCowoWorkflow workflow, Context ctx) throws Exception {
+    private static RunnableCowoWorkflow parseParams(Context ctx) throws Exception {
+        var workflow = new RunnableCowoWorkflow();
         for (var entry : ctx.queryParamMap().entrySet()) {
             String key = entry.getKey();
             String decodedParamValue = URLDecoder.decode(entry.getValue().getFirst(), StandardCharsets.UTF_8);
@@ -116,9 +107,9 @@ public class WorkflowCowoEndPoint {
         return workflow;
     }
 
-    private static void handleDataPersistence(RunnableCowoWorkflow workflow, String dataPersistenceId) {
-        workflow.setJobId(dataPersistenceId);
-        Path inputFile = APIController.tempFilesFolder.resolve(dataPersistenceId).resolve(dataPersistenceId);
+    private static void handleDataPersistence(RunnableCowoWorkflow workflow, String jobId) {
+        workflow.setJobId(jobId);
+        Path inputFile = APIController.globals.getInputDataPath(jobId);
         if (Files.exists(inputFile) && !Files.isDirectory(inputFile)) {
             try {
                 List<String> lines = Files.readAllLines(inputFile, StandardCharsets.UTF_8);

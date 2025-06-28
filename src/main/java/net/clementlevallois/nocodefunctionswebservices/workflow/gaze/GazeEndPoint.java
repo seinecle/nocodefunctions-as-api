@@ -7,26 +7,31 @@ import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
-import java.io.StringReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.net.HttpURLConnection;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import net.clementlevallois.functions.model.Globals;
 import net.clementlevallois.functions.model.Globals.GlobalQueryParams;
-import net.clementlevallois.functions.model.WorkflowGazeProps;
-import net.clementlevallois.functions.model.WorkflowGazeProps.BodyJsonKeys;
-import static net.clementlevallois.functions.model.WorkflowGazeProps.BodyJsonKeys.LINES;
-import net.clementlevallois.functions.model.WorkflowGazeProps.QueryParams;
+import net.clementlevallois.functions.model.WorkflowCoocProps;
+import net.clementlevallois.functions.model.WorkflowCoocProps.BodyJsonKeys;
+import net.clementlevallois.functions.model.WorkflowSimProps;
+import net.clementlevallois.functions.model.WorkflowSimProps.QueryParams;
+import net.clementlevallois.importers.model.CellRecord;
+import net.clementlevallois.importers.model.SheetModel;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import static net.clementlevallois.nocodefunctionswebservices.APIController.enumValueOf;
 import net.clementlevallois.utils.Multiset;
@@ -39,45 +44,92 @@ public class GazeEndPoint {
 
     public static Javalin addAll(Javalin app) throws Exception {
 
-        app.post(Globals.API_ENDPOINT_ROOT + WorkflowGazeProps.ENDPOINT_COOC, (Context ctx) -> {
+        app.post(Globals.API_ENDPOINT_ROOT + WorkflowCoocProps.ENDPOINT, (Context ctx) -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
-            byte[] bodyAsBytes = ctx.bodyAsBytes();
-            String body = new String(bodyAsBytes, StandardCharsets.UTF_8);
-            if (body.isEmpty()) {
-                String errorMsg = "body of the request should not be empty";
-                ctx.result(errorMsg).status(HttpURLConnection.HTTP_BAD_REQUEST);
-            } else {
-                RunnableGazeCooc runnableCooc = parseBodyForCooc(body);
-                Map<String, List<String>> queryParamMap = ctx.queryParamMap();
-                runnableCooc = parseQueryParamsForCooc(runnableCooc, queryParamMap);
-                runnableCooc.runGazeCoocInBackgroundThread();
-                ctx.result("ok").status(HttpURLConnection.HTTP_OK);
+            Map<String, List<String>> queryParamMap = ctx.queryParamMap();
+            RunnableCooc workflow = parseQueryParamsForCooc(queryParamMap);
+            var coocProps = new WorkflowCoocProps(APIController.tempFilesFolder);
+
+            JsonObject deserializedJsonObject = null;
+            Path pathForCooccurrencesFormattedAsJson = coocProps.getPathForCooccurrencesFormattedAsJson(workflow.getJobId());
+            try (InputStream is = Files.newInputStream(pathForCooccurrencesFormattedAsJson); JsonReader reader = Json.createReader(is)) {
+                deserializedJsonObject = reader.readObject();
+            } catch (IOException e) {
+                System.out.println("error deserializing the coocs in json format");
+                ctx.result("error deserializing the coocs in json format").status(HttpURLConnection.HTTP_BAD_REQUEST);
+                return;
             }
+            if (deserializedJsonObject == null) {
+                System.out.println("error deserializing the coocs in json format");
+                ctx.result("error deserializing the coocs in json format").status(HttpURLConnection.HTTP_BAD_REQUEST);
+                return;
+
+            }
+            workflow = parseBodyForCooc(workflow, deserializedJsonObject);
+            workflow.runGazeCoocInBackgroundThread();
+            ctx.result("ok").status(HttpURLConnection.HTTP_OK);
         });
 
-        app.post(Globals.API_ENDPOINT_ROOT + WorkflowGazeProps.ENDPOINT_SIM, ctx -> {
+        app.post(Globals.API_ENDPOINT_ROOT + WorkflowSimProps.ENDPOINT, ctx -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
-            byte[] bodyAsBytes = ctx.bodyAsBytes();
+            Map<String, List<String>> queryParamMap = ctx.queryParamMap();
+            RunnableGazeSim simRunnable = parseQueryParamsForSim(queryParamMap);
+            String jobId = simRunnable.getJobId();
 
-            String body = new String(bodyAsBytes, StandardCharsets.UTF_8);
-            if (body.isEmpty()) {
-                String errorMsg = "body of the request should not be empty";
-                ctx.result(errorMsg).status(HttpURLConnection.HTTP_BAD_REQUEST);
-            } else {
-                RunnableGazeSim gazeSimRunnable = parseBodyForSim(body);
-                Map<String, List<String>> queryParamMap = ctx.queryParamMap();
-                gazeSimRunnable = parseQueryParamsForSim(gazeSimRunnable, queryParamMap);
-                gazeSimRunnable.runGazeSimInBackgroundThread();
-                ctx.result("ok").status(HttpURLConnection.HTTP_OK);
+            List<SheetModel> dataInSheets = null;
+            Path tempDataPath = APIController.globals.getDataSheetPath(jobId, jobId);
+            byte[] byteArray = Files.readAllBytes(tempDataPath);
+            try (ByteArrayInputStream bis = new ByteArrayInputStream(byteArray); ObjectInputStream ois = new ObjectInputStream(bis)) {
+                Object obj = ois.readObject();
+                if (obj instanceof List) {
+                    dataInSheets = (List<SheetModel>) obj;
+                } else {
+                    System.out.println("Deserialized object is not a List.");
+                    ctx.result("Deserialized object is not a List.").status(HttpURLConnection.HTTP_BAD_REQUEST);
+                    return;
+                }
             }
+            SheetModel sheetWithData = dataInSheets.get(0);
+            if (sheetWithData == null) {
+                ctx.result("no sheetModel in List of sheetModels").status(HttpURLConnection.HTTP_BAD_REQUEST);
+                return;
+            }
+            Map<Integer, List<CellRecord>> mapOfCellRecordsPerRow = sheetWithData.getRowIndexToCellRecords();
+            Iterator<Map.Entry<Integer, List<CellRecord>>> iterator = mapOfCellRecordsPerRow.entrySet().iterator();
+
+            Map<String, Multiset<String>> sourcesAndTargets = new HashMap();
+            Multiset<String> setTargets;
+            String source = "";
+            while (iterator.hasNext()) {
+                Map.Entry<Integer, List<CellRecord>> entryCellRecordsInRow = iterator.next();
+                setTargets = new Multiset();
+                for (CellRecord cr : entryCellRecordsInRow.getValue()) {
+                    if (cr.getColIndex() == simRunnable.getSourceColIndex()) {
+                        source = cr.getRawValue();
+                    } else {
+                        setTargets.addOne(cr.getRawValue());
+                    }
+                }
+                if (sourcesAndTargets.containsKey(source)) {
+                    Multiset<String> existingTargetsForThisSource = sourcesAndTargets.get(source);
+                    existingTargetsForThisSource.addAllFromMultiset(setTargets);
+                    sourcesAndTargets.put(source, existingTargetsForThisSource);
+                } else {
+                    sourcesAndTargets.put(source, setTargets);
+                }
+            }
+            if (sourcesAndTargets.isEmpty()) {
+                ctx.result("no source and  / or no targets").status(HttpURLConnection.HTTP_BAD_REQUEST);
+            }
+
+            simRunnable.runGazeSimInBackgroundThread();
+            ctx.result("ok").status(HttpURLConnection.HTTP_OK);
+
         });
         return app;
     }
 
-    private static RunnableGazeCooc parseBodyForCooc(String body) throws Exception {
-        RunnableGazeCooc workflow = new RunnableGazeCooc();
-        JsonReader reader = Json.createReader(new StringReader(body));
-        JsonObject json = reader.readObject();
+    private static RunnableCooc parseBodyForCooc(RunnableCooc workflow, JsonObject json) throws Exception {
         for (var entry : json.entrySet()) {
             String key = entry.getKey();
             switch (BodyJsonKeys.valueOf(key.toUpperCase())) {
@@ -101,34 +153,8 @@ public class GazeEndPoint {
         return workflow;
     }
 
-    private static RunnableGazeSim parseBodyForSim(String body) throws Exception {
-        RunnableGazeSim gazeSimRunnable = new RunnableGazeSim();
-        JsonReader jsonReader = Json.createReader(new StringReader(body));
-        JsonObject jsonObject = jsonReader.readObject();
-        for (var entry : jsonObject.entrySet()) {
-            String key = entry.getKey();
-            switch (BodyJsonKeys.valueOf(key.toUpperCase())) {
-                case LINES -> {
-                    JsonObject linesJson = jsonObject.getJsonObject(key);
-                    Map<String, Set<String>> lines = new TreeMap();
-                    for (String nextLineKey : linesJson.keySet()) {
-                        JsonArray jsonArray = linesJson.getJsonArray(nextLineKey);
-                        List<String> list = new ArrayList();
-                        for (int i = 0; i < jsonArray.size(); i++) {
-                            list.add(jsonArray.getString(i));
-                        }
-                        Set<String> set = new HashSet();
-                        set.addAll(list);
-                        lines.put(nextLineKey, set);
-                    }
-                    gazeSimRunnable.setLines(lines);
-                }
-            }
-        }
-        return gazeSimRunnable;
-    }
-
-    private static RunnableGazeCooc parseQueryParamsForCooc(RunnableGazeCooc workflow, Map<String, List<String>> queryParamMap) throws Exception {
+    private static RunnableCooc parseQueryParamsForCooc(Map<String, List<String>> queryParamMap) throws Exception {
+        var workflow = new RunnableCooc();
         for (var entry : queryParamMap.entrySet()) {
             String key = entry.getKey();
             String decodedParamValue = URLDecoder.decode(entry.getValue().getFirst(), StandardCharsets.UTF_8);
@@ -152,7 +178,8 @@ public class GazeEndPoint {
         return workflow;
     }
 
-    private static RunnableGazeSim parseQueryParamsForSim(RunnableGazeSim workflow, Map<String, List<String>> queryParamMap) throws Exception {
+    private static RunnableGazeSim parseQueryParamsForSim(Map<String, List<String>> queryParamMap) throws Exception {
+        var workflow = new RunnableGazeSim();
         for (var entry : queryParamMap.entrySet()) {
             String key = entry.getKey();
             String decodedParamValue = URLDecoder.decode(entry.getValue().getFirst(), StandardCharsets.UTF_8);
@@ -164,6 +191,8 @@ public class GazeEndPoint {
                 Consumer<String> qpHandler = switch (qp.get()) {
                     case MIN_SHARED_TARGETS ->
                         s -> workflow.setMinSharedTarget(Integer.parseInt((s)));
+                    case SOURCE_COL_INDEX ->
+                        s -> workflow.setSourceColIndex(Integer.parseInt((s)));
                 };
                 qpHandler.accept(decodedParamValue);
             } else if (gqp.isPresent()) {

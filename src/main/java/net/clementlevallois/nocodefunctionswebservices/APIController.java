@@ -41,6 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import net.clementlevallois.functions.model.Globals;
 import net.clementlevallois.functions.model.Occurrence;
 import net.clementlevallois.functions.model.WorkflowCowoProps;
 import net.clementlevallois.nocodefunctionswebservices.cowo.CowoEndPoint;
@@ -74,6 +75,7 @@ public class APIController {
     public static String pwdOwner;
     public static Path tempFilesFolder;
     public static LLMsOps LLMOps;
+    public static Globals globals;
 
     private static final Logger LOGGER = Logger.getLogger(APIController.class.getName());
 
@@ -100,6 +102,8 @@ public class APIController {
         } else {
             tempFilesFolder = Path.of(props.getProperty("pathToTempFilesLinux"));
         }
+        
+        globals = new Globals(tempFilesFolder);
 
         app = Javalin.create(config -> {
             config.http.maxRequestSize = 1000000000;
@@ -220,13 +224,25 @@ public class APIController {
         }
     }
 
-    public static byte[] byteArraySerializerForDocuments(Document o) throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeObject(o);
-        oos.flush();
-        byte[] data = bos.toByteArray();
-        return data;
+    public static byte[] byteArraySerializerForDocuments(Document o) {
+        ObjectOutputStream oos = null;
+        try {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            oos = new ObjectOutputStream(bos);
+            oos.writeObject(o);
+            oos.flush();
+            byte[] data = bos.toByteArray();
+            return data;
+        } catch (IOException ex) {
+            Exceptions.printStackTrace(ex);
+            return null;
+        } finally {
+            try {
+                oos.close();
+            } catch (IOException ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        }
     }
 
     public static byte[] byteArraySerializerForAnyObject(Object o) throws IOException {

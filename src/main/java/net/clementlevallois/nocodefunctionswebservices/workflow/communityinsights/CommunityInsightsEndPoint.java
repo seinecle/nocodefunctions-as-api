@@ -52,7 +52,7 @@ public class CommunityInsightsEndPoint {
             switch (key) {
                 case "dataPersistenceId" -> {
                     handleDataPersistence(workflow, json.getString(key));
-                    workflow.setDataPersistenceId(json.getString(key));
+                    workflow.setJobId(json.getString(key));
                 }
                 case "sourceLang" ->
                     workflow.setSourceLang(json.getString(key, "en"));
@@ -79,7 +79,7 @@ public class CommunityInsightsEndPoint {
     }
 
     private static void handleDataPersistence(RunnableCommunityInsightsWorkflow workflow, String dataPersistenceId) throws Exception {
-        workflow.setDataPersistenceId(dataPersistenceId);
+        workflow.setJobId(dataPersistenceId);
         Path inputFile = APIController.tempFilesFolder.resolve(dataPersistenceId).resolve(dataPersistenceId);
         if (Files.exists(inputFile) && !Files.isDirectory(inputFile)) {
             String gexf = Files.readString(inputFile, StandardCharsets.UTF_8);
