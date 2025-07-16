@@ -180,17 +180,14 @@ public class APIController {
         }
     }
 
-    public static void sendProgressUpdate(int progress, String message, String callbackURL, String sessionId, String jobId) {
+    public static void sendProgressUpdate(int progress, String message, String callbackURL, String jobId) {
         if (callbackURL == null || callbackURL.isBlank()) {
             return;
         }
         JsonObjectBuilder joBuilder = Json.createObjectBuilder();
         joBuilder.add("info", "PROGRESS");
         joBuilder.add("function", WorkflowCowoProps.NAME);
-        if (sessionId != null) {
-            joBuilder.add("sessionId", sessionId);
-        }
-        joBuilder.add("dataPersistenceId", jobId);
+        joBuilder.add("jobId", jobId);
         joBuilder.add("progress", progress);
         joBuilder.add("message", message != null ? message : "");
         sendCallback(joBuilder.build().toString(), callbackURL);

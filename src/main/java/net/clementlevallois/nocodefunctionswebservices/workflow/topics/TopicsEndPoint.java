@@ -75,8 +75,6 @@ public class TopicsEndPoint {
                 qpHandler.accept(decodedParamValue);
             } else if (gqp.isPresent()) {
                 Consumer<String> gqpHandler = switch (gqp.get()) {
-                    case SESSION_ID ->
-                        workflow::setSessionId;
                     case CALLBACK_URL ->
                         workflow::setCallbackURL;
                     case JOB_ID ->

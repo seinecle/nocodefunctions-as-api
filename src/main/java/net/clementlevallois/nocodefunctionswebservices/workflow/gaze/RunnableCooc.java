@@ -27,13 +27,11 @@ public class RunnableCooc {
     private final WorkflowCoocProps functionProps;
     private final Globals globals;
     private String jobId;
-    private String sessionId;
     private String callbackURL;
 
     public RunnableCooc() {
         this.functionProps = new WorkflowCoocProps(APIController.tempFilesFolder);
         this.globals = new Globals(APIController.tempFilesFolder);
-
     }
 
     public void runGazeCoocInBackgroundThread() {
@@ -48,7 +46,7 @@ public class RunnableCooc {
                 Path tempResultsPath = functionProps.getGexfFilePath(jobId);
                 Files.writeString(tempResultsPath, gexf, StandardCharsets.UTF_8);
                 String statusMessage = "function complete";
-                APIController.sendProgressUpdate(80, statusMessage, callbackURL, sessionId, jobId);
+                APIController.sendProgressUpdate(80, statusMessage, callbackURL, jobId);
 
                 // --- Step 2 : detect top nodes and saving the corresponding json files ---
                 RunnableGetTopNodesFromGraph getTopNodes = new RunnableGetTopNodesFromGraph(jobId);
@@ -59,7 +57,7 @@ public class RunnableCooc {
                 Files.writeString(tempResultsPath, topNodes, StandardCharsets.UTF_8);
 
                 statusMessage = "Top graph identification completed successfully.";
-                APIController.sendProgressUpdate(100, statusMessage, callbackURL, sessionId, jobId);
+                APIController.sendProgressUpdate(100, statusMessage, callbackURL, jobId);
 
                 // --- Step 3 : writing a job complete file signal flag ---
                 tempResultsPath = globals.getWorkflowCompleteFilePath(jobId);
@@ -89,10 +87,6 @@ public class RunnableCooc {
 
     public void setJobId(String jobId) {
         this.jobId = jobId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
     }
 
     public void setCallbackURL(String callbackURL) {

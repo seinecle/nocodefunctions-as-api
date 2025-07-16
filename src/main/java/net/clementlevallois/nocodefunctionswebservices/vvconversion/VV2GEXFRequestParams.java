@@ -11,7 +11,6 @@ package net.clementlevallois.nocodefunctionswebservices.vvconversion;
 public class VV2GEXFRequestParams {
 
     private String jobId;
-    private String sessionId;
     private String callbackURL;
 
     public String getJobId() {
@@ -20,14 +19,6 @@ public class VV2GEXFRequestParams {
 
     public void setJobId(String jobId) {
         this.jobId = jobId;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
     }
 
     public String getCallbackURL() {

@@ -31,7 +31,6 @@ public class RunnableCowo {
     private Set<String> userSuppliedStopwords = new HashSet();
     private String lang = "en";
     private String typeCorrection = "none";
-    private String sessionId = "";
     private String callbackURL = "";
     private int minCharNumber = 4;
     private int minCoocFreq = 3;
@@ -42,23 +41,22 @@ public class RunnableCowo {
     private boolean removeAccents = false;
     private boolean isScientificCorpus = false;
     private boolean lemmatize = true;
-    private String dataPersistenceId = "";
+    private String jobId = "";
 
     public void runCowoInBackgroundThread() {
         Runnable runnable = () -> {
             try {
                 CowoFunction cowoFunction = new CowoFunction();
                 cowoFunction.setFlattenToAScii(removeAccents);
-                cowoFunction.setSessionIdAndCallbackURL(sessionId, callbackURL, dataPersistenceId);
+                cowoFunction.setSessionIdAndCallbackURL(callbackURL, jobId);
                 String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, firstNames, removeAccents, minCoocFreq, minTermFreq, typeCorrection, maxNGram, lemmatize);
-                Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), dataPersistenceId + "_result");
+                Path tempResultsPath = Path.of(APIController.tempFilesFolder.toString(), jobId + "_result");
                 Files.writeString(tempResultsPath, gexf, StandardCharsets.UTF_8);
 
                 JsonObjectBuilder joBuilder = Json.createObjectBuilder();
                 joBuilder.add("info", "RESULT_ARRIVED");
                 joBuilder.add("function", "cowo");
-                joBuilder.add("sessionId", sessionId);
-                joBuilder.add("dataPersistenceId", dataPersistenceId);
+                joBuilder.add("dataPersistenceId", jobId);
                 String joStringPayload = joBuilder.build().toString();
                 HttpClient client = HttpClient.newHttpClient();
                 URI uri = new URI(callbackURL);
@@ -111,14 +109,6 @@ public class RunnableCowo {
 
     public void setTypeCorrection(String typeCorrection) {
         this.typeCorrection = typeCorrection;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
     }
 
     public String getCallbackURL() {
@@ -197,11 +187,11 @@ public class RunnableCowo {
         this.lemmatize = lemmatize;
     }
 
-    public String getDataPersistenceId() {
-        return dataPersistenceId;
+    public String getJobId() {
+        return jobId;
     }
 
-    public void setDataPersistenceId(String dataPersistenceId) {
-        this.dataPersistenceId = dataPersistenceId;
+    public void setJobId(String jobId) {
+        this.jobId = jobId;
     }
 }

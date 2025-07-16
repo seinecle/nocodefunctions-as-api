@@ -27,7 +27,6 @@ public class RunnableCowoWorkflow implements Runnable {
     private TreeMap<Integer, String> lines;
     private Set<String> userSuppliedStopwords;
     private String lang;
-    private String sessionId;
     private String callbackURL;
     private int minCharNumber;
     private int minTermFreq;
@@ -61,15 +60,15 @@ public class RunnableCowoWorkflow implements Runnable {
         try {
             // --- Step 1: Cowo Function ---
             statusMessage = "Starting cowo...";
-            APIController.sendProgressUpdate(10, statusMessage, callbackURL, sessionId, jobId);
+            APIController.sendProgressUpdate(10, statusMessage, callbackURL, jobId);
             CowoFunction cowoFunction = new CowoFunction();
             cowoFunction.setFlattenToAScii(removeAccents);
-            cowoFunction.setSessionIdAndCallbackURL(sessionId, callbackURL, jobId);
+            cowoFunction.setSessionIdAndCallbackURL(callbackURL, jobId);
             String gexf = cowoFunction.analyze(lines, lang, userSuppliedStopwords, minCharNumber, replaceStopwords, isScientificCorpus, firstNames, removeAccents, minCoocFreq, minTermFreq, typeCorrection, maxNGram, lemmatize);
             Path tempResultsPath = functionProps.getGexfFilePath(jobId);
             Files.writeString(tempResultsPath, gexf, StandardCharsets.UTF_8);
             statusMessage = "Cowo function completed";
-            APIController.sendProgressUpdate(50, statusMessage, callbackURL, sessionId, jobId);
+            APIController.sendProgressUpdate(50, statusMessage, callbackURL, jobId);
 
             // --- Step 2 : detect top nodes and saving the corresponding json files ---
             RunnableGetTopNodesFromGraph getTopNodes = new RunnableGetTopNodesFromGraph(jobId);
@@ -84,7 +83,7 @@ public class RunnableCowoWorkflow implements Runnable {
             // --- Step 3 : workflow complete signal ---
             statusMessage = "Cowo workflow completed successfully.";
             overallSuccess = true;
-            APIController.sendProgressUpdate(100, statusMessage, callbackURL, sessionId, jobId);
+            APIController.sendProgressUpdate(100, statusMessage, callbackURL, jobId);
 
             Path workflowCompleteFilePath = globals.getWorkflowCompleteFilePath(jobId);
             Files.writeString(workflowCompleteFilePath, "finished");
@@ -94,12 +93,12 @@ public class RunnableCowoWorkflow implements Runnable {
             statusMessage = "Workflow failed: " + e.getMessage();
             overallSuccess = false;
             try {
-                APIController.sendProgressUpdate(100, statusMessage, callbackURL, sessionId, jobId);
+                APIController.sendProgressUpdate(100, statusMessage, callbackURL, jobId);
             } catch (Exception ignored) {
             }
         } finally {
             // --- Step 5: Send Final Callback ---
-            APIController.sendProgressUpdate(100, statusMessage, callbackURL, sessionId, jobId);
+            APIController.sendProgressUpdate(100, statusMessage, callbackURL, jobId);
 
             // --- Step 6: Cleanup Input Data File ---
             try {
@@ -121,10 +120,6 @@ public class RunnableCowoWorkflow implements Runnable {
 
     public void setLang(String lang) {
         this.lang = lang;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
     }
 
     public void setCallbackURL(String callbackURL) {

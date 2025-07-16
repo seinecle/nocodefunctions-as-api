@@ -27,7 +27,6 @@ public class RunnableGazeSim {
     private final WorkflowSimProps functionProps;
     private final Globals globals;
     private String jobId;
-    private String sessionId;
     private String callbackURL;
     private int minSharedTarget = 1;
     private int sourceColIndex;
@@ -48,7 +47,7 @@ public class RunnableGazeSim {
                 Path tempResultsPath = functionProps.getGexfFilePath(jobId);
                 Files.writeString(tempResultsPath, gexf, StandardCharsets.UTF_8);
                 String statusMessage = "similarity computation function complete";
-                APIController.sendProgressUpdate(80, statusMessage, callbackURL, sessionId, jobId);
+                APIController.sendProgressUpdate(80, statusMessage, callbackURL, jobId);
 
                 // --- Step 2 : detect top nodes and saving the corresponding json files ---
                 RunnableGetTopNodesFromGraph getTopNodes = new RunnableGetTopNodesFromGraph(jobId);
@@ -59,7 +58,7 @@ public class RunnableGazeSim {
                 Files.writeString(tempResultsPath, topNodes, StandardCharsets.UTF_8);
 
                 statusMessage = "Top graph identification completed successfully.";
-                APIController.sendProgressUpdate(100, statusMessage, callbackURL, sessionId, jobId);
+                APIController.sendProgressUpdate(100, statusMessage, callbackURL, jobId);
 
                 // --- Step 3 : writing a job complete file signal flag ---
                 tempResultsPath = globals.getWorkflowCompleteFilePath(jobId);
@@ -87,10 +86,6 @@ public class RunnableGazeSim {
 
     public void setJobId(String jobId) {
         this.jobId = jobId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
     }
 
     public void setCallbackURL(String callbackURL) {

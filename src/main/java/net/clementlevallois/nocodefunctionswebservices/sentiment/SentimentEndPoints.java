@@ -30,7 +30,6 @@ import static net.clementlevallois.functions.model.FunctionUmigon.QueryParams.SH
 import static net.clementlevallois.functions.model.FunctionUmigon.QueryParams.TEXT_LANG;
 import static net.clementlevallois.functions.model.Globals.GlobalQueryParams.CALLBACK_URL;
 import static net.clementlevallois.functions.model.Globals.GlobalQueryParams.JOB_ID;
-import static net.clementlevallois.functions.model.Globals.GlobalQueryParams.SESSION_ID;
 import net.clementlevallois.nocodefunctionswebservices.APIController;
 import static net.clementlevallois.nocodefunctionswebservices.APIController.enumValueOf;
 import static net.clementlevallois.nocodefunctionswebservices.APIController.increment;
@@ -318,8 +317,6 @@ public class SentimentEndPoints {
                     qpHandler.accept(decodedParamValue);
                 } else if (gqp.isPresent()) {
                     Consumer<String> gqpHandler = switch (gqp.get()) {
-                        case SESSION_ID ->
-                            s -> sessionIdRef.set(s);
                         case CALLBACK_URL ->
                             s -> callbackURLRef.set(s);
                         case JOB_ID ->

@@ -17,7 +17,6 @@ import net.clementlevallois.functions.model.FunctionNetworkConverter;
 import net.clementlevallois.functions.model.Globals;
 import static net.clementlevallois.functions.model.Globals.GlobalQueryParams.CALLBACK_URL;
 import static net.clementlevallois.functions.model.Globals.GlobalQueryParams.JOB_ID;
-import static net.clementlevallois.functions.model.Globals.GlobalQueryParams.SESSION_ID;
 import net.clementlevallois.gexfvosviewerjson.GexfToVOSViewerJson;
 import net.clementlevallois.gexfvosviewerjson.Metadata;
 import net.clementlevallois.gexfvosviewerjson.Terminology;
@@ -112,8 +111,6 @@ public class VosViewerConversionEndPoint {
 
             if (gqp.isPresent()) {
                 Consumer<String> gqpHandler = switch (gqp.get()) {
-                    case SESSION_ID ->
-                        s -> rp.setSessionId(s);
                     case CALLBACK_URL ->
                         s -> rp.setCallbackURL(s);
                     case JOB_ID ->
@@ -156,8 +153,6 @@ public class VosViewerConversionEndPoint {
                 qpHandler.accept(decodedParamValue);
             } else if (gqp.isPresent()) {
                 Consumer<String> gqpHandler = switch (gqp.get()) {
-                    case SESSION_ID ->
-                        params::setSessionId;
                     case CALLBACK_URL ->
                         params::setCallbackURL;
                     case JOB_ID ->

@@ -45,8 +45,8 @@ public class CowoEndPoint {
                 JsonObject jsonObject = jsonReader.readObject();
                 for (String nextKey : jsonObject.keySet()) {
                     if (nextKey.equals("dataPersistenceId")) {
-                        runnableCowo.setDataPersistenceId(jsonObject.getString(nextKey));
-                        Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), runnableCowo.getDataPersistenceId());
+                        runnableCowo.setJobId(jsonObject.getString(nextKey));
+                        Path tempDataPath = Path.of(APIController.tempFilesFolder.toString(), runnableCowo.getJobId());
                         if (Files.exists(tempDataPath) && !Files.isDirectory(tempDataPath)) {
                             List<String> readAllLines = Files.readAllLines(tempDataPath, StandardCharsets.UTF_8);
                             int i = 0;
@@ -95,10 +95,7 @@ public class CowoEndPoint {
                     if (nextKey.equals("typeCorrection")) {
                         runnableCowo.setTypeCorrection(jsonObject.getString(nextKey));
                     }
-                    if (nextKey.equals("sessionId")) {
-                        runnableCowo.setSessionId(jsonObject.getString(nextKey));
-                    }
-                    if (nextKey.equals("callbackURL")) {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    if (nextKey.equals("callbackURL")) {
                         runnableCowo.setCallbackURL(jsonObject.getString(nextKey));
                     }
                 }

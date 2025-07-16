@@ -13,7 +13,6 @@ public class GEXF2VVRequestParams {
     private String item;
     private String items;
     private String jobId;
-    private String sessionId;
     private String callbackURL;
     private String link;
     private String links;
@@ -27,14 +26,6 @@ public class GEXF2VVRequestParams {
 
     public void setJobId(String jobId) {
         this.jobId = jobId;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
     }
 
     public String getCallbackURL() {
