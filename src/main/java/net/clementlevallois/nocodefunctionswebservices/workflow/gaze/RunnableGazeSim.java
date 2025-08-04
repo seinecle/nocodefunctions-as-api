@@ -23,7 +23,7 @@ import org.openide.util.Exceptions;
  */
 public class RunnableGazeSim {
 
-    private Map<String, Set<String>> lines = new TreeMap();
+    private Map<String, Set<String>> sourcesAndTargets = new TreeMap();
     private final WorkflowSimProps functionProps;
     private final Globals globals;
     private String jobId;
@@ -42,7 +42,7 @@ public class RunnableGazeSim {
             try {
                 // --- Step 1 : do the similarity graph creation
                 SimilarityFunction simFunction = new SimilarityFunction();
-                String gexf = simFunction.createSimilarityGraph(lines, minSharedTarget);
+                String gexf = simFunction.createSimilarityGraph(sourcesAndTargets, minSharedTarget);
 
                 Path tempResultsPath = functionProps.getGexfFilePath(jobId);
                 Files.writeString(tempResultsPath, gexf, StandardCharsets.UTF_8);
@@ -72,12 +72,12 @@ public class RunnableGazeSim {
 
     }
 
-    public Map<String, Set<String>> getLines() {
-        return lines;
+    public Map<String, Set<String>> getSourcesAndTargets() {
+        return sourcesAndTargets;
     }
 
-    public void setLines(Map<String, Set<String>> lines) {
-        this.lines = lines;
+    public void setSourcesAndTargets(Map<String, Set<String>> sourcesAndTargets) {
+        this.sourcesAndTargets = sourcesAndTargets;
     }
 
     public String getJobId() {

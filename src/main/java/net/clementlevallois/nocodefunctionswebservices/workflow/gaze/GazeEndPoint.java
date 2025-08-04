@@ -3,31 +3,26 @@ package net.clementlevallois.nocodefunctionswebservices.workflow.gaze;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.util.NaiveRateLimit;
-import jakarta.json.Json;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.net.HttpURLConnection;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import net.clementlevallois.functions.model.Globals;
 import net.clementlevallois.functions.model.Globals.GlobalQueryParams;
 import net.clementlevallois.functions.model.WorkflowCoocProps;
-import net.clementlevallois.functions.model.WorkflowCoocProps.BodyJsonKeys;
 import net.clementlevallois.functions.model.WorkflowSimProps;
 import net.clementlevallois.functions.model.WorkflowSimProps.QueryParams;
 import net.clementlevallois.importers.model.CellRecord;
@@ -44,40 +39,35 @@ public class GazeEndPoint {
 
     public static Javalin addAll(Javalin app) throws Exception {
 
-        app.post(Globals.API_ENDPOINT_ROOT + WorkflowCoocProps.ENDPOINT, (Context ctx) -> {
+        app.get(Globals.API_ENDPOINT_ROOT + WorkflowCoocProps.ENDPOINT, (Context ctx) -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
             Map<String, List<String>> queryParamMap = ctx.queryParamMap();
             RunnableCooc workflow = parseQueryParamsForCooc(queryParamMap);
             var coocProps = new WorkflowCoocProps(APIController.tempFilesFolder);
 
-            JsonObject deserializedJsonObject = null;
-            Path pathForCooccurrencesFormattedAsJson = coocProps.getPathForCooccurrencesFormattedAsJson(workflow.getJobId());
-            try (InputStream is = Files.newInputStream(pathForCooccurrencesFormattedAsJson); JsonReader reader = Json.createReader(is)) {
-                deserializedJsonObject = reader.readObject();
-            } catch (IOException e) {
-                System.out.println("error deserializing the coocs in json format");
-                ctx.result("error deserializing the coocs in json format").status(HttpURLConnection.HTTP_BAD_REQUEST);
-                return;
-            }
-            if (deserializedJsonObject == null) {
-                System.out.println("error deserializing the coocs in json format");
-                ctx.result("error deserializing the coocs in json format").status(HttpURLConnection.HTTP_BAD_REQUEST);
-                return;
+            Map<Integer, Multiset<String>> coocsAsMap = null;
 
+            Path pathForCooccurrencesFormattedAsLines = coocProps.getPathForCooccurrencesFormattedAsMap(workflow.getJobId());
+            byte[] byteArray = Files.readAllBytes(pathForCooccurrencesFormattedAsLines);
+            try (ByteArrayInputStream bis = new ByteArrayInputStream(byteArray); ObjectInputStream ois = new ObjectInputStream(bis)) {
+                Object obj = ois.readObject();
+                coocsAsMap = (Map<Integer, Multiset<String>>) obj;
+            } catch (IOException | ClassNotFoundException ex) {
+                ctx.result("error in deserializing persisted coocs to a map in job " + workflow.getJobId()).status(HttpURLConnection.HTTP_BAD_REQUEST);
             }
-            workflow = parseBodyForCooc(workflow, deserializedJsonObject);
+            workflow.setLines(coocsAsMap);
             workflow.runGazeCoocInBackgroundThread();
             ctx.result("ok").status(HttpURLConnection.HTTP_OK);
         });
 
-        app.post(Globals.API_ENDPOINT_ROOT + WorkflowSimProps.ENDPOINT, ctx -> {
+        app.get(Globals.API_ENDPOINT_ROOT + WorkflowSimProps.ENDPOINT, ctx -> {
             NaiveRateLimit.requestPerTimeUnit(ctx, 50, TimeUnit.SECONDS);
             Map<String, List<String>> queryParamMap = ctx.queryParamMap();
             RunnableGazeSim simRunnable = parseQueryParamsForSim(queryParamMap);
             String jobId = simRunnable.getJobId();
 
             List<SheetModel> dataInSheets = null;
-            Path tempDataPath = APIController.globals.getDataSheetPath(jobId, jobId);
+            Path tempDataPath = APIController.globals.getDataSheetPath(jobId);
             byte[] byteArray = Files.readAllBytes(tempDataPath);
             try (ByteArrayInputStream bis = new ByteArrayInputStream(byteArray); ObjectInputStream ois = new ObjectInputStream(bis)) {
                 Object obj = ois.readObject();
@@ -97,22 +87,22 @@ public class GazeEndPoint {
             Map<Integer, List<CellRecord>> mapOfCellRecordsPerRow = sheetWithData.getRowIndexToCellRecords();
             Iterator<Map.Entry<Integer, List<CellRecord>>> iterator = mapOfCellRecordsPerRow.entrySet().iterator();
 
-            Map<String, Multiset<String>> sourcesAndTargets = new HashMap();
-            Multiset<String> setTargets;
+            Map<String, Set<String>> sourcesAndTargets = new HashMap();
+            Set<String> setTargets;
             String source = "";
             while (iterator.hasNext()) {
                 Map.Entry<Integer, List<CellRecord>> entryCellRecordsInRow = iterator.next();
-                setTargets = new Multiset();
+                setTargets = new HashSet();
                 for (CellRecord cr : entryCellRecordsInRow.getValue()) {
                     if (cr.getColIndex() == simRunnable.getSourceColIndex()) {
                         source = cr.getRawValue();
                     } else {
-                        setTargets.addOne(cr.getRawValue());
+                        setTargets.add(cr.getRawValue());
                     }
                 }
                 if (sourcesAndTargets.containsKey(source)) {
-                    Multiset<String> existingTargetsForThisSource = sourcesAndTargets.get(source);
-                    existingTargetsForThisSource.addAllFromMultiset(setTargets);
+                    Set<String> existingTargetsForThisSource = sourcesAndTargets.get(source);
+                    existingTargetsForThisSource.addAll(setTargets);
                     sourcesAndTargets.put(source, existingTargetsForThisSource);
                 } else {
                     sourcesAndTargets.put(source, setTargets);
@@ -122,35 +112,12 @@ public class GazeEndPoint {
                 ctx.result("no source and  / or no targets").status(HttpURLConnection.HTTP_BAD_REQUEST);
             }
 
+            simRunnable.setSourcesAndTargets(sourcesAndTargets);
             simRunnable.runGazeSimInBackgroundThread();
             ctx.result("ok").status(HttpURLConnection.HTTP_OK);
 
         });
         return app;
-    }
-
-    private static RunnableCooc parseBodyForCooc(RunnableCooc workflow, JsonObject json) throws Exception {
-        for (var entry : json.entrySet()) {
-            String key = entry.getKey();
-            switch (BodyJsonKeys.valueOf(key.toUpperCase())) {
-                case LINES -> {
-                    JsonObject linesJson = json.getJsonObject(key);
-                    Map<Integer, Multiset<String>> lines = new HashMap();
-                    for (String nextLineKey : linesJson.keySet()) {
-                        JsonArray jsonArray = linesJson.getJsonArray(nextLineKey);
-                        List<String> list = new ArrayList();
-                        for (int i = 0; i < jsonArray.size(); i++) {
-                            list.add(jsonArray.getString(i));
-                        }
-                        Multiset multiset = new Multiset();
-                        multiset.addAllFromListOrSet(list);
-                        lines.put(Integer.valueOf(nextLineKey), multiset);
-                    }
-                    workflow.setLines(lines);
-                }
-            }
-        }
-        return workflow;
     }
 
     private static RunnableCooc parseQueryParamsForCooc(Map<String, List<String>> queryParamMap) throws Exception {
